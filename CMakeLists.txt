@@ -5,7 +5,8 @@ cmake_policy(VERSION 3.19...3.22)
 include(mbed-os/tools/cmake/app.cmake)
 ##############
 ### Block of including project folders
-set(OPENOCD_UPLOAD_ENABLED TRUE)
+set(STLINK_UPLOAD_ENABLED TRUE)
+
 
 set(MBED_APP_JSON_PATH mbed_app.json5)
 
@@ -20,5 +21,9 @@ add_subdirectory(TARGET_BLUEPILL)
 add_subdirectory(mbed-os)
 
 add_executable(${PROJECT_NAME} main.cpp)
-target_link_libraries(${PROJECT_NAME} mbed-baremetal mbed-usb) # Can also link to mbed-baremetal here
+target_link_libraries(${PROJECT_NAME} mbed-baremetal mbed-usb) # Can also link to mbed-baremetal here mbed-usb
+target_link_options(${PROJECT_NAME} PRIVATE
+    "-T${CMAKE_CURRENT_SOURCE_DIR}/TARGET_BLUEPILL/STM32F103C8.ld"
+)
+
 mbed_set_post_build(${PROJECT_NAME})
