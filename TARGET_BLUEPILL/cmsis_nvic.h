@@ -33,6 +33,12 @@
 #define MBED_RAM_SIZE  0x5000  // 20 KB
 #endif
 
+#if !defined(MBED_CONF_TARGET_BOOT_STACK_SIZE)
+    /* This value is normally defined by the tools
+       to 0x1000 for bare metal and 0x400 for RTOS */
+    #define MBED_CONF_TARGET_BOOT_STACK_SIZE  0x1000
+#endif
+
 #define NVIC_NUM_VECTORS        59
 #define NVIC_RAM_VECTOR_ADDRESS MBED_RAM_START
 

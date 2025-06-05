@@ -15,8 +15,35 @@
  ******************************************************************************
 */
 
-#include "./cmsis_nvic.h"
+#ifndef MBED_CMSIS_NVIC_H
+#define MBED_CMSIS_NVIC_H
 
+#if !defined(MBED_ROM_START)
+#define MBED_ROM_START  0x8000000
+#endif
+
+#if !defined(MBED_ROM_SIZE)
+#define MBED_ROM_SIZE  0x10000  // 64 KB
+#endif
+
+#if !defined(MBED_RAM_START)
+#define MBED_RAM_START  0x20000000
+#endif
+
+#if !defined(MBED_RAM_SIZE)
+#define MBED_RAM_SIZE  0x5000  // 20 KB
+#endif
+
+#if !defined(MBED_CONF_TARGET_BOOT_STACK_SIZE)
+    /* This value is normally defined by the tools
+       to 0x1000 for bare metal and 0x400 for RTOS */
+    #define MBED_CONF_TARGET_BOOT_STACK_SIZE  0x1000
+#endif
+
+#define NVIC_NUM_VECTORS        59
+#define NVIC_RAM_VECTOR_ADDRESS MBED_RAM_START
+
+#endif
 
 #if !defined(MBED_APP_START)
   #define MBED_APP_START  MBED_ROM_START
@@ -29,16 +56,24 @@
 #if !defined(MBED_CONF_TARGET_BOOT_STACK_SIZE)
     /* This value is normally defined by the tools
        to 0x1000 for bare metal and 0x400 for RTOS */
-    #define MBED_CONF_TARGET_BOOT_STACK_SIZE  0x400
+    #define MBED_CONF_TARGET_BOOT_STACK_SIZE  0x1000
 #endif
 
 /* Round up VECTORS_SIZE to 8 bytes */
 #define VECTORS_SIZE  (((NVIC_NUM_VECTORS * 4) + 7) & 0xFFFFFFF8)
 
+/*
 MEMORY
 {
     FLASH (rx)   : ORIGIN = MBED_APP_START, LENGTH = MBED_APP_SIZE
     RAM (rwx)    : ORIGIN = MBED_RAM_START + VECTORS_SIZE, LENGTH = MBED_RAM_SIZE - VECTORS_SIZE
+}
+*/
+
+MEMORY
+{
+  FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 64K
+  RAM   (rwx): ORIGIN = 0x20000000, LENGTH = 20K
 }
 
 /* Linker script to place sections and symbol values. Should be used together
@@ -179,7 +214,7 @@ SECTIONS
         __end__ = .;
         PROVIDE(end = .);
         *(.heap*)
-        . = ORIGIN(RAM) + LENGTH(RAM) - MBED_CONF_TARGET_BOOT_STACK_SIZE;
+        . = ORIGIN(RAM) + LENGTH(RAM) - 0x1000;
         __HeapLimit = .;
     } > RAM
 
@@ -195,7 +230,7 @@ SECTIONS
      * size of stack_dummy section */
     __StackTop = ORIGIN(RAM) + LENGTH(RAM);
     _estack = __StackTop;
-    __StackLimit = __StackTop - MBED_CONF_TARGET_BOOT_STACK_SIZE;
+    __StackLimit = __StackTop - 0x1000;
     PROVIDE(__stack = __StackTop);
 
     /* Check if data + heap + stack exceeds RAM limit */

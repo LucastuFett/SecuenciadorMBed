@@ -1,14 +1,14 @@
 {
-   "requires": ["bare-metal","events","drivers-usb"],
-   "target_overrides": {
-      "*": {
-         "platform.stdio-baud-rate"          : 115200,
-         "platform.stdio-buffered-serial"    : 1,
-         "target.application-profile": "bare-metal",
-         "target.c_lib": "small",
-         "target.clock_source": "USE_PLL_HSI | USE_PLL_HSE_XTAL",
-         //"target.clock_source_usb": "1",
-         "target.device_has_add": ["USBDEVICE"]
-      }
-   }
+  requires: ["bare-metal", "events", "drivers-usb"],
+  target_overrides: {
+    "*": {
+      "platform.stdio-baud-rate": 115200,
+      "platform.stdio-buffered-serial": 1,
+      "target.application-profile": "bare-metal",
+      "target.c_lib": "small",
+      "target.clock_source": "USE_PLL_HSI | USE_PLL_HSE_XTAL",
+      //"target.clock_source_usb": "1",
+      "target.device_has_add": ["USBDEVICE"],
+    },
+  },
 }

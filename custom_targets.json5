@@ -1,18 +1,28 @@
 {
-    "BLUEPILL": {
-        "inherits": ["MCU_STM32F103x8"],
-        "device_name": "STM32F103RB",
-        "macros_add": [
-            "STM32F103C8"
-        ],
-        "device_has_add": [
-            "USBDEVICE"
-        ]//,
-        //"overrides": {
-        //   "target.mbed_rom_start": "0x08000000",
-        //    "target.mbed_rom_size":  "0x10000",       // 64KB flash
-        //    "target.mbed_ram_start": "0x20000000",
-        //    "target.mbed_ram_size":  "0x5000"         // 20KB RAM
-        //}
-    }
+  BLUEPILL: {
+    inherits: ["MCU_STM32F103x8"],
+    //device_name: "STM32F103C8",
+    macros_add: ["STM32F103C8"],
+    device_has_add: ["USBDEVICE"],
+    memory_banks: {
+      RAM: {
+        start: 0x20000000,
+        size: 0x5000,
+        access: {
+          read: true,
+          write: true,
+          execute: true,
+        },
+      },
+      FLASH: {
+        start: 0x08000000,
+        size: 0x10000,
+        access: {
+          read: true,
+          execute: true,
+          write: false,
+        },
+      },
+    },
+  },
 }
