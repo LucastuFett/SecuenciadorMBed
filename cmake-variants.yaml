@@ -18,7 +18,7 @@ board:
   # target name in targets.json5 file or custom_targets.json5 in case of custom target.
   # For simplified just replace every occurrence of YOUR_MBED_TARGET with Mbed target name. 
   # For example LPC1768 or NUCLEO_L452RE_P
-  default: BLUEPILL # default variant (choose) from below
+  default: RASPBERRY_PI_PICO # default variant (choose) from below
   choices:
     BLUEPILL: # Name of one variant
       short: BLUEPILL # Short name of the variant
@@ -40,3 +40,12 @@ board:
         UPLOAD_METHOD: STLINK
         #OPENOCD_CHIP_CONFIG_COMMANDS: -f /Users/lucasgutie/SecuenciadorMBed/openocd.cfg
         #MBED_UPLOAD_SERIAL_NUMBER: 152F04023212354D434B4E00
+    RASPBERRY_PI_PICO: # Name of one variant
+      short: RASPBERRY_PI_PICO # Short name of the variant
+      settings:
+        MBED_TARGET: RASPBERRY_PI_PICO # Your mbed target name from targets.json5 file
+        # Fill your upload method according to variants below
+        # - universal: NONE, MBED, JLINK, PYOCD, OPENOCD
+        # - target specific: STLINK, STM32CUBE, LINKSERVER, PICOTOOL, ARDUINO_BOSSAC
+        # For more visit -
+        UPLOAD_METHOD: PICOTOOLV2
