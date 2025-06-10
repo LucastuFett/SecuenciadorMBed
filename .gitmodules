@@ -2,6 +2,3 @@
 	path = mbed-os
 	url = https://github.com/mbed-ce/mbed-os.git
 	shallow = true
-[submodule "pico-sdk"]
-	path = pico-sdk
-	url = https://github.com/raspberrypi/pico-sdk

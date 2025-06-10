@@ -69,7 +69,7 @@ add_subdirectory(mbed-os)
 
 ### add executable (necessary everytime)
 # This will compile an elf file named the same as the project with the given source files.
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME} main.cpp WS2812.h ws2812.pio.h)
 
 ######################################################################################################
 ### Link libraries block
