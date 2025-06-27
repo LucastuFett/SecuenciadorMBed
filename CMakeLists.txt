@@ -69,7 +69,15 @@ add_subdirectory(mbed-os)
 
 ### add executable (necessary everytime)
 # This will compile an elf file named the same as the project with the given source files.
-add_executable(${PROJECT_NAME} main.cpp WS2812.h ws2812.pio.h)
+add_executable(${PROJECT_NAME} 
+    src/main.cpp 
+    src/MIDITimer.cpp
+)
+
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc
+)
 
 ######################################################################################################
 ### Link libraries block
@@ -85,6 +93,7 @@ if("MBED_CONF_TARGET_APPLICATION_PROFILE=bare-metal" IN_LIST MBED_CONFIG_DEFINIT
 else()
     target_link_libraries(${PROJECT_NAME} mbed-os mbed-usb)
 endif()
+
 
 ### link user library (if needed)
 #target_link_libraries(${PROJECT_NAME} YourLibrary)
