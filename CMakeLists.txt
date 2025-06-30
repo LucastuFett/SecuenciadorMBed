@@ -73,6 +73,7 @@ add_executable(${PROJECT_NAME}
     src/main.cpp 
     src/MIDITimer.cpp
     src/WS2812.cpp
+    src/Encoder.cpp
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
 )

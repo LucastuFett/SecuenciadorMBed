@@ -2,6 +2,7 @@
 #include "USBMIDI.h"
 #include "MIDITimer.h"
 #include "WS2812.h"
+#include "Encoder.h"
 
 USBMIDI midi;
 uint8_t beat = 0;
@@ -64,6 +65,8 @@ DigitalOut ledChannel4(p9, 0); // LED for channel 4
 DigitalOut ledChannel5(p8, 0); // LED for channel 5
 
 WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
+Encoder encoder(p6, p7, PullUp); // Encoder for tempo adjustment
+PwmOut pwmEncoder(p13);
 
 int lastKeys[9] = {0}; // Keys for play/pause, stop, and tempo switch
 int keys[9] = {0}; // Current state of keys
@@ -106,6 +109,21 @@ void checkTempo() {
     }
 }
 
+void do_enc(void)
+{
+    int evalue=0;
+    encoder.setAccumulate(true);  // let the class keep track of counts; note it can roll over, though
+    while (1)
+    {
+        evalue=encoder.read();
+        pwmEncoder.write(evalue / float((1<<31))); // Scale the encoder value to PWM range
+        ThisThread::sleep_for(100ms);
+    }
+}
+
+Thread encthread;    // thread for encoder
+
+
 int main()
 {
     // Give the USB a moment to initialize and enumerate
@@ -121,7 +139,7 @@ int main()
     ledChannel3 = channelEnabled[2]; // Update LED for channel 3
     ledChannel4 = channelEnabled[3]; // Update LED for channel 4
     ledChannel5 = channelEnabled[4]; // Update LED for channel 5
-
+    encthread.start(do_enc);
 
     while (true) {
         timer.poll();
