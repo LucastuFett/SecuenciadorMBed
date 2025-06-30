@@ -1,6 +1,7 @@
 #include "mbed.h"
 #include "USBMIDI.h"
 #include "MIDITimer.h"
+#include "WS2812.h"
 
 USBMIDI midi;
 uint8_t beat = 0;
@@ -62,22 +63,22 @@ DigitalOut ledChannel3(p10, 0); // LED for channel 3
 DigitalOut ledChannel4(p9, 0); // LED for channel 4
 DigitalOut ledChannel5(p8, 0); // LED for channel 5
 
-//WS2812_PIO ledStrip(p7, 8); // SPI pins for WS2812 strip
+WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
 
 int lastKeys[9] = {0}; // Keys for play/pause, stop, and tempo switch
 int keys[9] = {0}; // Current state of keys
 int tempoEnabled = 0;
 int currentSong = 0; // Current song index
-/*uint8_t ledData[8][3] = {
-    {0, 0, 0}, // Channel 1
-    {0, 0, 0}, // Channel 2
-    {0, 0, 0}, // Channel 3
-    {0, 0, 0}, // Channel 4
-    {0, 0, 0}, // Channel 5
-    {0, 0, 0}, // -
-    {0, 0, 0}, // -
-    {0, 0, 0}  // -
-};*/
+uint32_t ledData[8] = {
+    0xFF000000, // Channel 1 - Green
+    0xFF000000, // Channel 2 - Green
+    0x00FF0000, // Channel 3 - Red
+    0x00FF0000, // Channel 4 - Red
+    0x0000FF00, // Channel 5 - Blue
+    0x0000FF00, // Channel 6 - Blue
+    0x00000000, // Channel 7 - Off
+    0x00000000  // Channel 8 - Off
+};
 
 void updateTempo() {
     tempo[1] = static_cast<uint16_t>(tempoPot.read() * 350);
@@ -200,10 +201,7 @@ int main()
                 timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[0])); // Default tempo
             }
         }
-        /*for (int i = 0; i < 8; i++) {
-            ledStrip.setPixel(i, ledData[i][0], ledData[i][1], ledData[i][2]);
-        }
-        ledStrip.show();*/
+        ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
 
     }
 }
