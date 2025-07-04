@@ -116,7 +116,7 @@ void do_enc(void)
     while (1)
     {
         evalue=encoder.read();
-        pwmEncoder.write(evalue / float((1<<31))); // Scale the encoder value to PWM range
+        pwmEncoder.write((evalue & 0x7FFF) / float((1<<31))); // Scale the encoder value to PWM range
         ThisThread::sleep_for(100ms);
     }
 }
