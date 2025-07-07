@@ -3,6 +3,12 @@
 #include "MIDITimer.h"
 #include "WS2812.h"
 #include "Encoder.h"
+#include "SPI_TFT_ILI9341.h"
+#include "string"
+#include "Arial12x12.h"
+#include "Arial24x23.h"
+#include "Arial28x28.h"
+#include "font_big.h"
 
 USBMIDI midi;
 uint8_t beat = 0;
@@ -51,27 +57,28 @@ DigitalIn enableTempoSwitch(p27, PullDown);
 DigitalIn changeSongButton(p14, PullDown);
 DigitalOut ledTempo(p15, 0); // LED to indicate tempo mode
 AnalogIn tempoPot(p26, 3.3f);
-
+/*
 DigitalIn channel1(p0, PullDown);
 DigitalIn channel2(p1, PullDown);
 DigitalIn channel3(p2, PullDown);
 DigitalIn channel4(p3, PullDown);
 DigitalIn channel5(p4, PullDown);
-
+*/
 DigitalOut ledChannel1(p12, 0); // LED for channel 1
 DigitalOut ledChannel2(p11, 0); // LED for channel 2
 DigitalOut ledChannel3(p10, 0); // LED for channel 3
 DigitalOut ledChannel4(p9, 0); // LED for channel 4
 DigitalOut ledChannel5(p8, 0); // LED for channel 5
 
-WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
+//WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
 Encoder encoder(p6, p7, PullUp); // Encoder for tempo adjustment
-PwmOut pwmEncoder(p13);
+//PwmOut pwmEncoder(p13);
 
 int lastKeys[9] = {0}; // Keys for play/pause, stop, and tempo switch
 int keys[9] = {0}; // Current state of keys
 int tempoEnabled = 0;
 int currentSong = 0; // Current song index
+/*
 uint32_t ledData[8] = {
     0xFF000000, // Channel 1 - Green
     0xFF000000, // Channel 2 - Green
@@ -79,16 +86,27 @@ uint32_t ledData[8] = {
     0x00FF0000, // Channel 4 - Red
     0x0000FF00, // Channel 5 - Blue
     0x0000FF00, // Channel 6 - Blue
-    0x00000000, // Channel 7 - Off
-    0x00000000  // Channel 8 - Off
+    0x77777700, // Channel 7 - Off
+    0x77007700  // Channel 8 - Off
 };
 
+uint32_t lastLedData[8] = {
+    0xFF000000, // Channel 1 - Green
+    0xFF000000, // Channel 2 - Green
+    0x00FF0000, // Channel 3 - Red
+    0x00FF0000, // Channel 4 - Red
+    0x0000FF00, // Channel 5 - Blue
+    0x0000FF00, // Channel 6 - Blue
+    0x77777700, // Channel 7 - Off
+    0x77007700  // Channel 8 - Off
+}; // Last state of LEDs
+*/
 void updateTempo() {
     tempo[1] = static_cast<uint16_t>(tempoPot.read() * 350);
     if (tempo[1] < 120) tempo[1] = 120;
     timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1]));
 }
-
+/*
 void readKeys(int currentKeys[]) {
     currentKeys[0] = playPauseButton.read();
     currentKeys[1] = stopButton.read();
@@ -99,7 +117,7 @@ void readKeys(int currentKeys[]) {
     currentKeys[6] = channel4.read();
     currentKeys[7] = channel5.read();
     currentKeys[8] = changeSongButton.read();
-}
+}*/
 
 void checkTempo() {
     if (tempoEnabled) {
@@ -112,18 +130,41 @@ void checkTempo() {
 void do_enc(void)
 {
     int evalue=0;
-    encoder.setAccumulate(true);  // let the class keep track of counts; note it can roll over, though
     while (1)
     {
-        evalue=encoder.read();
-        pwmEncoder.write((evalue & 0x7FFF) / float((1<<31))); // Scale the encoder value to PWM range
-        ThisThread::sleep_for(100ms);
+        if (encoder.getRotaryEncoder()){
+            int current=encoder.read();
+            if (current != 0)
+                evalue += current; // Increment or decrement based on encoder direction
+            midi.write(MIDIMessage::ControlChange(0,evalue & 0x7F)); // Send encoder value as CC message
+        }
+        ThisThread::sleep_for(1ms);
     }
 }
 
 Thread encthread;    // thread for encoder
 
+/*
+Mutex ledDataMutex;
 
+void changeLED(void){
+    while(1) {
+        ledDataMutex.lock();
+        ledData[0] ^= 0x00FF0000;
+        ledData[1] ^= 0x0000FF00;
+        ledData[2] ^= 0xFF000000;
+        ledData[3] ^= 0x0000FF00;
+        ledData[4] ^= 0xFF000000;
+        ledData[5] ^= 0x00FF0000;
+        ledDataMutex.unlock();
+        ThisThread::sleep_for(500ms);
+    }
+}
+
+Thread ledThread;
+*/
+
+SPI_TFT_ILI9341 TFT(p3,p0,p2,p1,p5,p4,"TFT");
 int main()
 {
     // Give the USB a moment to initialize and enumerate
@@ -132,6 +173,45 @@ int main()
     }
     // Set and Attach Trigger
     timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[0]));
+    //ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
+    //ledThread.start(changeLED); // Start LED change thread
+    encthread.start(do_enc);
+
+
+    TFT.claim(stdout);      // send stdout to the TFT display
+    //TFT.claim(stderr);      // send stderr to the TFT display
+    TFT.set_orientation(1);
+    TFT.background(Green);    // set background to Green
+    TFT.foreground(White);    // set chars to white
+    TFT.cls();                // clear the screen
+
+    midi.write(MIDIMessage::PitchWheel(TFT.Read_ID() & 0xFFF,0)); // Send TFT width as CC message
+
+        TFT.cls();
+    TFT.set_font((unsigned char*) Arial24x23);
+    TFT.locate(100,100);
+    TFT.printf("Graphic");
+
+    TFT.line(0,0,100,0,Green);
+    TFT.line(0,0,0,200,Green);
+    TFT.line(0,0,100,200,Green);
+
+    TFT.rect(100,50,150,100,Red);
+    TFT.fillrect(180,25,220,70,Blue);
+
+    TFT.circle(80,150,33,White);
+    TFT.fillcircle(160,190,20,Yellow);
+
+    double s;
+
+    for (int i=0; i<320; i++) {
+        s =20 * sin((long double) i / 10 );
+        TFT.pixel(i,100 + (int)s ,Red);
+    }
+
+
+
+    /*
     ledTempo = tempoEnabled;
     // Update channel LEDs
     ledChannel1 = channelEnabled[0]; // Update LED for channel 1
@@ -139,10 +219,12 @@ int main()
     ledChannel3 = channelEnabled[2]; // Update LED for channel 3
     ledChannel4 = channelEnabled[3]; // Update LED for channel 4
     ledChannel5 = channelEnabled[4]; // Update LED for channel 5
-    encthread.start(do_enc);
-
+    */
+   
     while (true) {
-        timer.poll();
+        
+        //timer.poll();
+        /*
         readKeys(keys);
         if (memcmp(keys, lastKeys, sizeof(keys)) != 0) {
             if (keys[0] && !lastKeys[0]) { // Play/Pause button pressed
@@ -190,7 +272,7 @@ int main()
                 memcpy(tempo, songs[currentSong].tempo, sizeof(tempo));
                 timer.stop();
                 checkTempo();
-            }
+            }*/
             /*
             for (int i = 0; i < 5; i++) {
                 if (channelEnabled[i]) {
@@ -203,6 +285,7 @@ int main()
                     ledData[i][2] = 0; // Blue
                 }
             }*/
+           /*
             // Update channel LEDs
             ledChannel1 = channelEnabled[0]; // Update LED for channel 1
             ledChannel2 = channelEnabled[1]; // Update LED for channel 2
@@ -218,8 +301,13 @@ int main()
             }else{
                 timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[0])); // Default tempo
             }
+        }*/
+       /*
+        ledDataMutex.lock();
+        if (memcmp(ledData, lastLedData, sizeof(ledData)) != 0) {
+            ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
+            memcpy(lastLedData, ledData, sizeof(ledData)); // Update last LED data
         }
-        ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
-
+        ledDataMutex.unlock();*/
     }
 }

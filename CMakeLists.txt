@@ -72,8 +72,11 @@ add_subdirectory(mbed-os)
 add_executable(${PROJECT_NAME} 
     src/main.cpp 
     src/MIDITimer.cpp
-    src/WS2812.cpp
-    src/Encoder.cpp
+    drivers/src/WS2812.cpp
+    drivers/src/Encoder.cpp
+    drivers/src/GraphicsDisplay.cpp
+    drivers/src/SPI_TFT_ILI9341.cpp
+    drivers/src/TextDisplay.cpp
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
 )
@@ -81,6 +84,7 @@ add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/inc
+        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/inc
 )
 
 ######################################################################################################
