@@ -18,6 +18,11 @@
 
 #include "mbed.h"
 #include "GraphicsDisplay.h"
+#include "string"
+#include "Arial12x12.h"
+#include "Arial24x23.h"
+#include "Arial28x28.h"
+#include "font_big.h"
 
 #define RGB(r,g,b)  (((r&0xF8)<<8)|((g&0xFC)<<3)|((b&0xF8)>>3)) //5 red | 6 green | 5 blue
 
