@@ -9,7 +9,7 @@ extern uint8_t channels[16]; // Active channels
 extern USBMIDI midi; // MIDI interface instance
 extern uint8_t beat; // Current beat index
 
-MIDITimer::MIDITimer(){
+MIDITimer::MIDITimer(Callback <void()> timeoutCallback) : _timeoutCallback(timeoutCallback) {
     // Constructor initializes the timer state
     _running = false;
     _interval = 0;
@@ -21,19 +21,26 @@ void MIDITimer::start(us_timestamp_t interval) {
     _timer.start();
 }
 
-void MIDITimer::stop() {
-    pause();
-    beat = 0;
+void MIDITimer::start() {
+    _running = true;
+    _timer.start();
 }
 
-void MIDITimer::pause() {
+void MIDITimer::stop() {
     _running = false;
     _timer.stop();
     _timer.reset();
-    allNotesOff();
 }
 
-bool MIDITimer::is_running() const {
+void MIDITimer::playPause() {
+    if (_running) {
+        stop();
+    } else {
+        start();
+    }
+}
+
+bool MIDITimer::isRunning() const {
     return _running;
 }
 
@@ -48,11 +55,7 @@ void MIDITimer::poll() {
 }
 
 void MIDITimer::timeout() {
-    beat++;
-    if (beat == 32) {
-        beat = 0;
-    }
-    beatPlay();
+    _timeoutCallback(); // Call the timeout callback
 }
 
 void MIDITimer::beatPlay() {
@@ -83,5 +86,12 @@ void MIDITimer::allNotesOff() {
         if (channels[i] != 0) {
             midi.write(MIDIMessage::AllNotesOff(i));
         }
+    }
+}
+
+void MIDITimer::setInterval(us_timestamp_t interval){
+    _interval = interval;
+    if (_running) {
+        _timer.start();
     }
 }

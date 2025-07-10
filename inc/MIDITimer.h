@@ -6,21 +6,25 @@ class MIDITimer {
     bool _running;
     us_timestamp_t _interval;
     Timer _timer;
+    Callback <void()> _timeoutCallback;
 public:
     // Constructor
-    MIDITimer();
+    MIDITimer(Callback <void()> timeoutCallback);
 
     // Start the timer with a specified interval
     void start(us_timestamp_t interval);
 
+    // Start the timer with saved interval
+    void start();
+
     // Stop the timer and reset the beat
     void stop();
 
-    // Pause the timer
-    void pause();
+    // Play/Pause the timer
+    void playPause();
 
     // Check if the timer is currently running
-    bool is_running() const;
+    bool isRunning() const;
 
     // Poll the timer to check if the interval has elapsed
     void poll() ;
@@ -33,5 +37,8 @@ public:
 
     // Send an All Notes Off message for Channels with active notes
     void allNotesOff();
+
+    // Set Saved Interval
+    void setInterval(us_timestamp_t interval);
     
 };

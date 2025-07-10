@@ -2,9 +2,12 @@
 #include <map>
 #include "USBMIDI.h"
 #include "MIDITimer.h"
+#include "Buttons.h"
 #include "WS2812.h"
 #include "Encoder.h"
 #include "SPI_TFT_ILI9341.h"
+
+#define SCALE_COUNT 3
 
 // Hardware
 
@@ -26,7 +29,7 @@ DigitalOut rows[5] ={
 DigitalIn exitSW(p15, PullDown);
 DigitalIn selectSW(p14, PullDown);
 
-DigitalIn toggle32(p28, PullNone);
+DigitalIn mode32(p28, PullNone);
 
 BufferedSerial midiUART(p12, p13, 31250); // MIDI UART
 WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
@@ -40,7 +43,7 @@ bool lastKeys[5][4] = {{0}}; // Last state of keys
 
 // Composition
 
-MIDITimer timer; 
+MIDITimer timer(callback(timeout)); 
 
 // Structs and Enums
 
@@ -59,7 +62,7 @@ struct holdKey {
 
 // Programming Mode
 
-const scale scales[3] = {{"Major", {2,2,1,2,2,2}}, {"Minor", {2,1,2,2,1,2}}, {"Chrom", {1,1,1,1,1,1,1,1,1,1,1}}};
+const scale scales[SCALE_COUNT] = {{"Major", {2,2,1,2,2,2}}, {"Minor", {2,1,2,2,1,2}}, {"Chrom", {1,1,1,1,1,1,1,1,1,1,1}}};
 
 enum state mainState = MAIN;
 uint8_t midiMessages[320][3] = {{0}};
@@ -73,7 +76,7 @@ uint8_t octave = 3;
 uint8_t channel = 0;
 uint8_t velocity = 127;
 uint8_t channels[16] = {0};
-bool mode32 = false;
+//bool mode32 = false;  DigitalIn
 bool half = false;
 uint32_t control = 0;
 uint16_t tempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
@@ -118,23 +121,365 @@ void readKeys() {
 }
 
 void select() {
-
+    switch (mainState){
+        case NOTE:
+        case SCALE:
+        case TEMPO:
+            mainState = PROG;
+            break;
+        case PROG:
+            if (mode32) half = ~half;
+            break;
+        case MEMORY:
+        case RENAME:
+            // Select Letter
+            break;
+        case SAVELOAD:
+            // Get Filename
+            break;
+        case PLAY:
+            if (timer.isRunning()) {
+                // Next Filename and Read
+                queue = true;
+            } else {
+                // Get Filename and Read
+                // Update Structs
+            }
+            break;
+    }
+    changeState();
 }
 
 void function1() {
-    // Function 1 implementation
+    switch (mainState) {
+        case MAIN:
+        case NOTE:
+        case SCALE:
+        case TEMPO:
+        case CHANNEL:
+            mainState = PROG;
+            break;
+        case PROG:
+            if (shift) {
+                // Update Text, Edit = 0
+                mainState = MEMORY;
+                shift = false;
+            } else {
+                mainState = NOTE;
+                prevNote = note;
+            }
+            break;
+        case MEMORY:
+            // Save Filename and File
+            mainState = PROG;
+            break;
+        case SAVELOAD:
+            // Read from File
+            mainState = PROG;
+            break;
+        case RENAME:
+            // Rename File
+            mainState = SAVELOAD;
+            break;
+        case PLAY:
+            if (!timer.isRunning()) {
+                beat --;
+            } else {
+                timer.allNotesOff();
+                // Update Colors
+            }
+            timer.playPause(); // Toggle Play/Pause
+            break;
+    }
+    changeState();
 }
 
 void function2() {
-    // Function 2 implementation
+    switch (mainState) {
+        case MAIN:
+            mainState = PLAY;
+            break;
+        case PROG:
+            if (shift) {
+                prevChn = channel;
+                mainState = CHANNEL;
+                shift = false;
+            } else {
+                if (!timer.isRunning()) {
+                    beat --;
+                } else {
+                    timer.allNotesOff();
+                    // Update Colors
+                }
+                timer.playPause(); // Toggle Play/Pause
+            }
+            break;
+        case NOTE:
+            octave --;
+            if (octave < 0) octave = 0; // Prevent negative octave
+            break;
+        case SCALE:
+            mode --;
+            if (mode < 0) mode = SCALE_COUNT - 1; // Wrap around to last scale
+            break;
+        case TEMPO:
+            tempo[0] = 0;
+            break;
+        case MEMORY:
+        case RENAME:
+            if (shift) {
+                // Change Pointer
+            } else {
+                // Change Upper
+            }
+            break;
+        case SAVELOAD:
+            if (shift) {
+                mainState = RENAME;
+                // Rename Filename
+            } else {
+                bank --;
+                if (bank < 1) bank = 8; // Wrap around to last bank
+            }
+            break;
+        case PLAY:
+            bank --;
+            if (bank < 1) bank = 8; // Wrap around to last bank
+            break;
+    }
+    changeState();
 }
 
 void function3() {
-    // Function 3 implementation
+    switch (mainState) {
+        case PROG:
+            if (shift) {
+                memcpy(prevTempo, tempo, sizeof(tempo)); // Save previous tempo
+                mainState = TEMPO;
+                shift = false;
+            } else {
+                timer.stop();
+                timer.allNotesOff();
+                // Update Colors
+                beat = 0;
+            }
+            break;
+        case NOTE:
+            octave ++;
+            if (octave > 7) octave = 7; // Prevent upper octave
+            break;
+        case SCALE:
+            mode ++;
+            if (mode == SCALE_COUNT) mode = 0; // Wrap around to first scale
+            break;
+        case TEMPO:
+            tempo[0] = 1;
+            break;
+        case MEMORY:
+        case RENAME:
+            // Set Text to ""
+            if (!shift) {
+                // Left
+            }
+            break;
+        case SAVELOAD:
+            if (shift) {
+                // Delete
+            } else {
+                bank ++;
+                if (bank > 8) bank = 1; // Wrap around to first bank
+            }
+            break;
+        case PLAY:
+            bank ++;
+            if (bank > 8) bank = 1; // Wrap around to first bank
+            break;
+    }
+    changeState();
 }
 
 void function4() {
-    // Function 4 implementation
+    switch (mainState) {
+        case NOTE:
+            note = prevNote;
+            mainState = PROG;
+            break;
+        case SCALE:
+            mode = prevMode;
+            tone = prevTone;
+            mainState = PROG;
+            break;
+        case TEMPO:
+            memcpy(tempo, prevTempo, sizeof(tempo)); // Restore previous tempo
+            mainState = PROG;
+            break;
+        case CHANNEL:
+            channel = prevChn;
+            mainState = PROG;
+            break;
+        case PROG:
+            if (shift) {
+                prevMode = mode;
+                prevTone = tone;
+                mainState = SCALE;
+                shift = false;
+            } else {
+                if (hold != 0) hold = 0;
+                else hold = 1;
+            }
+            break;
+        case MEMORY:
+            // Save Filename
+            mainState = SAVELOAD;
+            break;
+        case SAVELOAD:
+            mainState = MEMORY;
+            break;
+        case RENAME:
+            mainState = SAVELOAD;
+            break;
+        case PLAY:
+            timer.stop();
+            timer.allNotesOff();
+            // Update Colors
+            beat = 0;
+            break;
+    }
+    changeState();
+}
+
+void exit() {
+    switch (mainState){
+		case PROG:
+        case PLAY:
+			mainState = MAIN;
+            break;
+		case NOTE:
+			note = prevNote;
+			mainState = PROG;
+            break;
+		case SCALE:
+			mode = prevMode;
+			tone = prevTone;
+			mainState = PROG;
+            break;
+		case TEMPO:
+			memcpy(tempo, prevTempo, sizeof(tempo)); // Restore previous tempo
+			mainState = PROG;
+            break;
+		case CHANNEL:
+			channel = prevChn;
+			mainState = PROG;
+            break;
+		case MEMORY:
+			mainState = PROG;
+            break;
+		case SAVELOAD:
+			mainState = MEMORY;
+            break;
+    }
+	changeState();
+}
+
+void left() {
+    switch (mainState) {
+        case PROG:
+            velocity --;
+            if (velocity < 0) velocity = 0; // Prevent lower velocity
+            break;
+        case NOTE:
+            note --;
+            if (note < 0) {
+                octave --;
+                note = 11; // Wrap around to last note in lower octave
+            }
+            if (octave < 0) octave = 0; // Prevent negative octave
+            break;
+        case SCALE:
+            tone --;
+            if (tone < 0) tone = 11; // Wrap around to last tone
+            break;
+        case TEMPO:
+            tempo[1] --;
+            if (tempo[0]) {
+                if (tempo[1] < 0) tempo[1] = 2;
+            } else {
+                if (tempo[1] < 60) tempo[1] = 360; // Prevent lower tempo
+            }
+            break;
+        case CHANNEL:
+            channel --;
+            if (channel < 0) channel = 15; // Wrap around to last channel
+            break;
+    }
+    // Screen Left
+    changeState();
+}
+
+void right() {
+    switch (mainState) {
+        case PROG:
+            velocity ++;
+            if (velocity > 127) velocity = 127; // Prevent upper velocity
+            break;
+        case NOTE:
+            note ++;
+            if (note > 11) {
+                octave ++;
+                note = 0; // Wrap around to first note in upper octave
+            }
+            if (octave > 7) octave = 7; // Prevent upper octave
+            break;
+        case SCALE:
+            tone ++;
+            if (tone > 11) tone = 0; // Wrap around to first tone
+            break;
+        case TEMPO:
+            tempo[1] ++;
+            if (tempo[0]) {
+                if (tempo[1] > 2) tempo[1] = 0;
+            } else {
+                if (tempo[1] > 360) tempo[1] = 60; // Prevent upper tempo
+            }
+            break;
+        case CHANNEL:
+            channel ++;
+            if (channel > 15) channel = 0; // Wrap around to first channel
+            break;
+    }
+    // Screen Right
+    changeState();
+}
+
+void changeState() {
+    // Update Screen
+    // Update Buttons Colors
+    tempoChange();
+}
+
+void tempoChange() {
+    if (!tempo[0]) {
+        timer.setInterval(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1])); // Internal tempo
+    }
+}
+
+void timeout() {
+    beat ++;
+    if ((mode32 && beat == 32) || (!mode32 && beat == 16)) {
+        beat = 0; // Reset beat after 32 or 16 beats
+        if (mainState == PLAY && queue) {
+            // Load next composition
+            memcpy(midiMessages, nextMessages, sizeof(midiMessages));
+            memcpy(offMessages, nextOffMessages, sizeof(offMessages));
+            memcpy(tempo, nextTempo, sizeof(tempo));
+            filename = nextFilename;
+            timer.allNotesOff(); // Stop all notes
+            // Update Structures
+            queue = false;
+        }
+    }
+    timer.beatPlay(); // Send MIDI messages for the current beat
+    // Update Colors
 }
 
 /*
@@ -162,17 +507,7 @@ uint32_t lastLedData[8] = {
     0x77007700  // Channel 8 - Off
 }; // Last state of LEDs
 
-void updateTempo() {
-    tempo[1] = static_cast<uint16_t>(tempoPot.read() * 350);
-    if (tempo[1] < 120) tempo[1] = 120;
-    timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1]));
-}
-
 */
-
-void checkTempo() {
-    timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[0])); // Default tempo
-}
 
 void do_enc(void)
 {
