@@ -13,6 +13,7 @@
  /* change the char position handling
   * use pixel (x,y) instadt of colum row */
  
+
 #ifndef MBED_SPI_TFT_ILI9341_H
 #define MBED_SPI_TFT_ILI9341_H
 
@@ -21,11 +22,72 @@
 #include "string"
 #include "Arial12x12.h"
 #include "Arial24x23.h"
-#include "Arial28x28.h"
-#include "font_big.h"
 
 #define RGB(r,g,b)  (((r&0xF8)<<8)|((g&0xFC)<<3)|((b&0xF8)>>3)) //5 red | 6 green | 5 blue
 
+// ILI9341 SPI Commands
+#define ILI9341_NOP         0x00  // No-op register
+#define ILI9341_SWRESET     0x01  // Software reset register
+#define ILI9341_RDDID       0x04  // Read display identification information
+#define ILI9341_RDDST       0x09  // Read Display Status
+
+#define ILI9341_SLPIN       0x10  // Enter Sleep Mode
+#define ILI9341_SLPOUT      0x11  // Sleep Out
+#define ILI9341_PTLON       0x12  // Partial Mode ON
+#define ILI9341_NORON       0x13  // Normal Display Mode ON
+
+#define ILI9341_RDMODE      0x0A  // Read Display Power Mode
+#define ILI9341_RDMADCTL    0x0B  // Read Display MADCTL
+#define ILI9341_RDPIXFMT    0x0C  // Read Display Pixel Format
+#define ILI9341_RDIMGFMT    0x0D  // Read Display Image Format
+#define ILI9341_RDSELFDIAG  0x0F  // Read Display Self-Diagnostic Result
+
+#define ILI9341_INVOFF      0x20  // Display Inversion OFF
+#define ILI9341_INVON       0x21  // Display Inversion ON
+#define ILI9341_GAMMASET    0x26  // Gamma Set
+#define ILI9341_DISPOFF     0x28  // Display OFF
+#define ILI9341_DISPON      0x29  // Display ON
+
+#define ILI9341_CASET       0x2A  // Column Address Set
+#define ILI9341_PASET       0x2B  // Page Address Set
+#define ILI9341_RAMWR       0x2C  // Memory Write
+#define ILI9341_RAMRD       0x2E  // Memory Read
+
+#define ILI9341_PTLAR       0x30  // Partial Area
+#define ILI9341_VSCRDEF     0x33  // Vertical Scrolling Definition
+#define ILI9341_MADCTL      0x36  // Memory Access Control
+#define ILI9341_VSCRSADD    0x37  // Vertical Scrolling Start Address
+#define ILI9341_PIXFMT      0x3A  // COLMOD: Pixel Format Set
+
+#define ILI9341_FRMCTR1     0xB1  // Frame Rate Control (In Normal Mode/Full Colors)
+#define ILI9341_FRMCTR2     0xB2  // Frame Rate Control (In Idle Mode/8 colors)
+#define ILI9341_FRMCTR3     0xB3  // Frame Rate control (In Partial Mode/Full Colors)
+#define ILI9341_INVCTR      0xB4  // Display Inversion Control
+#define ILI9341_DFUNCTR     0xB6  // Display Function Control
+
+#define ILI9341_PWCTR1      0xC0  // Power Control 1
+#define ILI9341_PWCTR2      0xC1  // Power Control 2
+#define ILI9341_PWCTR3      0xC2  // Power Control 3
+#define ILI9341_PWCTR4      0xC3  // Power Control 4
+#define ILI9341_PWCTR5      0xC4  // Power Control 5
+#define ILI9341_VMCTR1      0xC5  // VCOM Control 1
+#define ILI9341_VMCTR2      0xC7  // VCOM Control 2
+
+#define ILI9341_RDID1       0xDA  // Read ID 1
+#define ILI9341_RDID2       0xDB  // Read ID 2
+#define ILI9341_RDID3       0xDC  // Read ID 3
+#define ILI9341_RDID4       0xDD  // Read ID 4
+
+#define ILI9341_GMCTRP1     0xE0  // Positive Gamma Correction
+#define ILI9341_GMCTRN1     0xE1  // Negative Gamma Correction
+
+#define ILI9341_MADCTL_MY   0x80
+#define ILI9341_MADCTL_MX   0x40
+#define ILI9341_MADCTL_MV   0x20
+#define ILI9341_MADCTL_ML   0x10
+#define ILI9341_MADCTL_RGB  0x00
+#define ILI9341_MADCTL_BGR  0x08
+#define ILI9341_MADCTL_MH   0x04
 
 /* some RGB color definitions                                                 */
 #define Black           0x0000      /*   0,   0,   0 */
@@ -63,7 +125,7 @@
  *
  * // the TFT is connected to SPI pin 5-7 and IO's 8-10
  * SPI_TFT_ILI9341 TFT(p5, p6, p7, p8, p9, p10,"TFT"); // mosi, miso, sclk, cs, reset, dc
- * If your display need a signal for switch the backlight use a aditional IO pin in your program 
+ * // If your display need a signal for switch the backlight use a aditional IO pin in your program 
  *
  * int main() {
  *     TFT.claim(stdout);      // send stdout to the TFT display 
@@ -79,10 +141,10 @@
  *     TFT.set_font((unsigned char*) Arial24x23);  // select font 2
  *     TFT.locate(48,115);
  *     TFT.printf("Bigger Font");
- *  }
+ * }
  * @endcode
  */
- class SPI_TFT_ILI9341 : public GraphicsDisplay , public SPI {
+ class SPI_TFT_ILI9341 : public GraphicsDisplay {
  public:
 
   /** Create a SPI_TFT object connected to SPI and three pins
@@ -99,15 +161,14 @@
     
   /** Get the width of the screen in pixel
    *
+   * @param 
    * @returns width of screen in pixel
-   *
    */    
   virtual int width();
 
   /** Get the height of the screen in pixel
    *
    * @returns height of screen in pixel 
-   *
    */     
   virtual int height();
     
@@ -119,52 +180,52 @@
    */    
   virtual void pixel(int x, int y,int colour);
     
-  /** draw a circle
+  /** Draw a circle
    *
    * @param x0,y0 center
    * @param r radius
-   * @param color 16 bit color                                                                 *
-   *
+   * @param color 16 bit color
    */    
   void circle(int x, int y, int r, int colour); 
   
-  /** draw a filled circle
+  /** Draw a filled circle
    *
    * @param x0,y0 center
    * @param r radius
-   * @param color 16 bit color                                                                 *
+   * @param color 16 bit color
+   *
+   * use circle with different radius,
+   * can miss some pixel
    */    
   void fillcircle(int x, int y, int r, int colour); 
+  
  
     
-  /** draw a 1 pixel line
+  /** Draw a 1 pixel line
    *
    * @param x0,y0 start point
    * @param x1,y1 stop point
    * @param color 16 bit color
-   *
    */    
   void line(int x0, int y0, int x1, int y1, int colour);
     
-  /** draw a rect
+  /** Draw a rect
    *
    * @param x0,y0 top left corner
    * @param x1,y1 down right corner
    * @param color 16 bit color
-   *                                                   *
    */    
   void rect(int x0, int y0, int x1, int y1, int colour);
     
-  /** draw a filled rect
+  /** Draw a filled rect
    *
    * @param x0,y0 top left corner
    * @param x1,y1 down right corner
    * @param color 16 bit color
-   *
    */    
   void fillrect(int x0, int y0, int x1, int y1, int colour);
     
-  /** setup cursor position
+  /** Setup cursor position
    *
    * @param x x-position (top left)
    * @param y y-position 
@@ -172,98 +233,88 @@
   virtual void locate(int x, int y);
     
   /** Fill the screen with _backgroun color
-   *
    */   
   virtual void cls (void);   
     
-  /** calculate the max number of char in a line
+  /** Calculate the max number of char in a line
    *
-   * @returns max columns
-   * depends on actual font size
-   *
+   * @returns max columns, depends on actual font size
    */    
   virtual int columns(void);
     
-  /** calculate the max number of columns
+  /** Calculate the max number of columns
    *
-   * @returns max column
-   * depends on actual font size
-   *
+   * @returns max column, depends on actual font size
    */   
   virtual int rows(void);
     
-  /** put a char on the screen
+  /** Put a char on the screen
    *
    * @param value char to print
    * @returns printed char
-   *
    */
   virtual int _putc(int value);
     
-  /** draw a character on given position out of the active font to the TFT
+  /** Draw a character on given position out of the active font to the TFT
    *
    * @param x x-position of char (top left) 
    * @param y y-position
    * @param c char to print
-   *
    */    
   virtual void character(int x, int y, int c);
     
-  /** paint a bitmap on the TFT 
+  /** Paint a bitmap on the TFT 
    *
    * @param x,y : upper left corner 
    * @param w width of bitmap
    * @param h high of bitmap
    * @param *bitmap pointer to the bitmap data
    *
-   *   bitmap format: 16 bit R5 G6 B5
+   * bitmap format: 16 bit R5 G6 B5
    * 
-   *   use Gimp to create / load , save as BMP, option 16 bit R5 G6 B5            
-   *   use winhex to load this file and mark data stating at offset 0x46 to end
-   *   use edit -> copy block -> C Source to export C array
-   *   paste this array into your program
+   * use Gimp to create / load , save as BMP, option 16 bit R5 G6 B5            
+   * use winhex to load this file and mark data stating at offset 0x46 to end
+   * use edit -> copy block -> C Source to export C array
+   * paste this array into your program
    * 
-   *   define the array as static const unsigned char to put it into flash memory
-   *   cast the pointer to (unsigned char *) :
-   *   tft.Bitmap(10,40,309,50,(unsigned char *)scala);
+   * define the array as static const unsigned char to put it into flash memory
+   * cast the pointer to (unsigned char *) :
+   * tft.Bitmap(10,40,309,50,(unsigned char *)scala);
    */    
   void Bitmap(unsigned int x, unsigned int y, unsigned int w, unsigned int h,unsigned char *bitmap);
     
-    
-   /** paint a 16 bit BMP from filesytem on the TFT (slow) 
+#if DEVICE_LOCALFILESYSTEM
+   /** Paint a 16 bit BMP from local filesytem on the TFT (slow) 
    *
-   * @param x,y : position of upper left corner 
-   * @param *Name_BMP name of the BMP file with drive: "/local/test.bmp"
-   *
+   * @param x,y : upper left corner 
+   * @param *Name_BMP name of the BMP file
    * @returns 1 if bmp file was found and painted
-   * @returns  0 if bmp file was found not found
-   * @returns -1 if file is no bmp
-   * @returns -2 if bmp file is no 16 bit bmp
+   * @returns -1 if bmp file was found not found
+   * @returns -2 if bmp file is not 16bit
    * @returns -3 if bmp file is to big for screen 
    * @returns -4 if buffer malloc go wrong
    *
-   *   bitmap format: 16 bit R5 G6 B5
+   * bitmap format: 16 bit R5 G6 B5
    * 
-   *   use Gimp to create / load , save as BMP, option 16 bit R5 G6 B5
-   *   copy to internal file system or SD card           
+   * use Gimp to create / load , save as BMP, option 16 bit R5 G6 B5
+   * copy to internal file system            
    */      
     
   int BMP_16(unsigned int x, unsigned int y, const char *Name_BMP);  
+#endif
     
     
-    
-  /** select the font to use
+  /** Select the font to use
    *
    * @param f pointer to font array 
    *                                                                              
-   *   font array can created with GLCD Font Creator from http://www.mikroe.com
-   *   you have to add 4 parameter at the beginning of the font array to use: 
-   *   - the number of byte / char
-   *   - the vertial size in pixel
-   *   - the horizontal size in pixel
-   *   - the number of byte per vertical line
-   *   you also have to change the array to char[]
-   *
+   * font array can created with GLCD Font Creator from http://www.mikroe.com
+   * you have to add 4 parameter at the beginning of the font array to use: 
+   * - the number of byte / char
+   * - the vertial size in pixel
+   * - the horizontal size in pixel
+   * - the number of byte per vertical line
+   * you also have to change the array to char[]
    */  
   void set_font(unsigned char* f);
    
@@ -271,19 +322,12 @@
    *  x,y: 0,0 is always top left 
    *
    * @param o direction to use the screen (0-3)  
-   *
    */  
   void set_orientation(unsigned int o);
-  
-  
-  /** read out the manufacturer ID of the LCD
-   *  can used for checking the connection to the display
-   *  @returns ID
-   */ 
-  int Read_ID(void);
-  
+    
+  SPI _spi;
   DigitalOut _cs; 
-  DigitalOut _reset;
+  PinName _reset;
   DigitalOut _dc;
   unsigned char* font;
   
@@ -298,17 +342,16 @@ protected:
   void WindowMax (void);
 
 
-  /** draw a horizontal line
+  /** Draw a horizontal line
    *
    * @param x0 horizontal start
    * @param x1 horizontal stop
    * @param y vertical position
-   * @param color 16 bit color                                               
-   *
+   * @param color 16 bit color
    */
   void hline(int x0, int x1, int y, int colour);
     
-  /** draw a vertical line
+  /** Draw a vertical line
    *
    * @param x horizontal position
    * @param y0 vertical start 
@@ -328,15 +371,14 @@ protected:
     
  
     
-  /** Init the ILI9341 controller 
+  /** Init the HX8347D controller 
    *
-   */    
+   */
   void tft_reset();
     
    /** Write data to the LCD controller
    *
    * @param dat data written to LCD controller
-   * 
    */   
   //void wr_dat(unsigned int value);
   void wr_dat(unsigned char value);
@@ -365,17 +407,12 @@ protected:
    */    
   //void wr_dat_only(unsigned short dat);
     
-  /** Read byte from the LCD controller
+  /** Read data from the LCD controller
    *
-   * @param cmd comand to controller
    * @returns data from LCD controller
    *  
    */    
-   char rd_byte(unsigned char cmd);
-    
-  
-  int rd_32(unsigned char cmd);  
-    
+  //unsigned short rd_dat(void);
     
   /** Write a value to the to a LCD register
    *
@@ -391,24 +428,11 @@ protected:
    */    
   //unsigned short rd_reg (unsigned char reg);
     
-  #if defined TARGET_NUCLEO_L152RE || defined TARGET_NUCLEO_F103RB || defined TARGET_LPC1768
-  /** fast SPI write function for optimized versions 
-   *
-   * @param data  data written to SPI
-   *
-   */
-  virtual void f_write(int data);
-  virtual void spi_bsy(void);
-  virtual void spi_16(bool s);
-  
-  #endif  
-    
   unsigned char spi_port; 
   unsigned int orientation;
   unsigned int char_x;
   unsigned int char_y;
-  unsigned char spi_num;
-  
+ 
     
 };
 

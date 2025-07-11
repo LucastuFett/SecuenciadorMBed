@@ -5,7 +5,7 @@
 #include "Buttons.h"
 #include "WS2812.h"
 #include "Encoder.h"
-#include "SPI_TFT_ILI9341.h"
+#include "ILI9341.h"
 
 #define SCALE_COUNT 3
 
@@ -29,17 +29,31 @@ DigitalOut rows[5] ={
 DigitalIn exitSW(p15, PullDown);
 DigitalIn selectSW(p14, PullDown);
 
-DigitalIn mode32(p28, PullNone);
+DigitalIn toggle32(p28, PullNone);
 
 BufferedSerial midiUART(p12, p13, 31250); // MIDI UART
-WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
+//WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
 Encoder encoder(p6, p7, PullUp); // Encoder for tempo adjustment
-SPI_TFT_ILI9341 TFT(p3,p0,p2,p1,p5,p4,"TFT");
+ILI9341 TFT(p3,p0,p2,p1,p5,p4);
 
 USBMIDI midi;
 
 bool keys[5][4] = {{0}}; // 5 rows, 4 columns
 bool lastKeys[5][4] = {{0}}; // Last state of keys
+
+// Function Declarations
+void readKeys();
+void select();
+void function1();
+void function2();
+void function3();
+void function4();
+void exit();
+void left();
+void right();
+void changeState();
+void tempoChange();
+void timeout();
 
 // Composition
 
@@ -54,12 +68,6 @@ struct scale {
     uint8_t intervals[12];
 };
 
-struct holdKey {
-    uint8_t beatStart;
-    uint8_t channel;
-    uint8_t midiNote;
-};
-
 // Programming Mode
 
 const scale scales[SCALE_COUNT] = {{"Major", {2,2,1,2,2,2}}, {"Minor", {2,1,2,2,1,2}}, {"Chrom", {1,1,1,1,1,1,1,1,1,1,1}}};
@@ -68,32 +76,32 @@ enum state mainState = MAIN;
 uint8_t midiMessages[320][3] = {{0}};
 uint8_t offMessages[320][3] = {{0}}; 
 uint32_t beatsPerTone[1536] = {0};
-uint8_t beat = 0;
-uint8_t tone = 0;
-uint8_t mode = 0;
-uint8_t note = 0;
-uint8_t octave = 3;
-uint8_t channel = 0;
-uint8_t velocity = 127;
+int8_t beat = 0;
+int8_t tone = 0;
+int8_t mode = 0;
+int8_t note = 0;
+int8_t octave = 3;
+int8_t channel = 0;
+int8_t velocity = 127;
 uint8_t channels[16] = {0};
-//bool mode32 = false;  DigitalIn
+bool mode32 = false;
 bool half = false;
 uint32_t control = 0;
-uint16_t tempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
+int16_t tempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
 string filename = "Test";
 string renameFilename = "";
 uint8_t bank = 1;
 uint8_t hold = 0; // 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
-map<holdKey,uint8_t> holded;
+map<holdKey,uint8_t, CompareHoldKey> holded;
 
 // UI Variables
 
 bool shift = false;
-uint8_t prevNote = 0; // Previous note for the UI
-uint8_t prevMode = 0; // Previous mode for the UI
-uint8_t prevChn = 0; // Previous channel for the UI
-uint8_t prevTone = 0; // Previous tone for the UI
-uint16_t prevTempo[2] = {0,120};
+int8_t prevNote = 0; // Previous note for the UI
+int8_t prevMode = 0; // Previous mode for the UI
+int8_t prevChn = 0; // Previous channel for the UI
+int8_t prevTone = 0; // Previous tone for the UI
+int16_t prevTempo[2] = {0,120};
 
 // Play Mode
 
@@ -128,7 +136,7 @@ void select() {
             mainState = PROG;
             break;
         case PROG:
-            if (mode32) half = ~half;
+            if (mode32) half = !half;
             break;
         case MEMORY:
         case RENAME:
@@ -145,6 +153,8 @@ void select() {
                 // Get Filename and Read
                 // Update Structs
             }
+            break;
+        default:
             break;
     }
     changeState();
@@ -189,6 +199,8 @@ void function1() {
                 // Update Colors
             }
             timer.playPause(); // Toggle Play/Pause
+            break;
+        default:
             break;
     }
     changeState();
@@ -246,6 +258,8 @@ void function2() {
             bank --;
             if (bank < 1) bank = 8; // Wrap around to last bank
             break;
+        default:
+            break;
     }
     changeState();
 }
@@ -293,6 +307,8 @@ void function3() {
         case PLAY:
             bank ++;
             if (bank > 8) bank = 1; // Wrap around to first bank
+            break;
+        default:
             break;
     }
     changeState();
@@ -344,6 +360,8 @@ void function4() {
             // Update Colors
             beat = 0;
             break;
+        default:
+            break;
     }
     changeState();
 }
@@ -376,6 +394,8 @@ void exit() {
             break;
 		case SAVELOAD:
 			mainState = MEMORY;
+            break;
+        default:
             break;
     }
 	changeState();
@@ -411,6 +431,8 @@ void left() {
             channel --;
             if (channel < 0) channel = 15; // Wrap around to last channel
             break;
+        default:
+            break;
     }
     // Screen Left
     changeState();
@@ -420,7 +442,7 @@ void right() {
     switch (mainState) {
         case PROG:
             velocity ++;
-            if (velocity > 127) velocity = 127; // Prevent upper velocity
+            if (velocity == -128) velocity = 127; // Prevent upper velocity
             break;
         case NOTE:
             note ++;
@@ -445,6 +467,8 @@ void right() {
         case CHANNEL:
             channel ++;
             if (channel > 15) channel = 0; // Wrap around to first channel
+            break;
+        default:
             break;
     }
     // Screen Right
@@ -508,7 +532,7 @@ uint32_t lastLedData[8] = {
 }; // Last state of LEDs
 
 */
-
+/*
 void do_enc(void)
 {
     int evalue=0;
@@ -525,7 +549,7 @@ void do_enc(void)
 }
 
 Thread encthread;    // thread for encoder
-
+*/
 /*
 
 void changeLED(void){
@@ -555,18 +579,23 @@ int main()
     timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[0]));
     //ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
     //ledThread.start(changeLED); // Start LED change thread
-    encthread.start(do_enc);
-
-
+    //encthread.start(do_enc);
+    
+    TFT.initialize();
+    TFT.setRotation(1); // Set rotation to 1
+    TFT.fillRectangle(100,40,160,160,BLUE); // Clear the screen with black background
+    TFT.drawString(0,0,"Hello World Hello Hello Hello", 30, 2, WHITE, GREEN); // Draw a string on the screen
+    
+    /*
     TFT.claim(stdout);      // send stdout to the TFT display
     //TFT.claim(stderr);      // send stderr to the TFT display
     TFT.set_orientation(1);
-    TFT.background(Green);    // set background to Green
+    TFT.background(Red);    // set background to Green
     TFT.foreground(White);    // set chars to white
-    TFT.cls();                // clear the screen
-
-    midi.write(MIDIMessage::PitchWheel(TFT.Read_ID() & 0xFFF,0)); // Send TFT width as CC message
-
+    TFT.fillrect(0,0,120,160,Blue);                // clear the screen
+    */
+    //midi.write(MIDIMessage::PitchWheel(TFT.Read_ID() & 0xFFF,0)); // Send TFT width as CC message
+    /*
         TFT.cls();
     TFT.set_font((unsigned char*) Arial24x23);
     TFT.locate(100,100);
@@ -581,14 +610,14 @@ int main()
 
     TFT.circle(80,150,33,White);
     TFT.fillcircle(160,190,20,Yellow);
-
+    
     double s;
 
     for (int i=0; i<320; i++) {
         s =20 * sin((long double) i / 10 );
         TFT.pixel(i,100 + (int)s ,Red);
     }
-
+    */
    
     while (true) {
         

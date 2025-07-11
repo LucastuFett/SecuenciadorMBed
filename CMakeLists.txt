@@ -75,9 +75,9 @@ add_executable(${PROJECT_NAME}
     src/Buttons.cpp
     drivers/src/WS2812.cpp
     drivers/src/Encoder.cpp
-    drivers/src/GraphicsDisplay.cpp
-    drivers/src/SPI_TFT_ILI9341.cpp
-    drivers/src/TextDisplay.cpp
+    #drivers/src/GraphicsDisplay.cpp
+    drivers/src/ILI9341.cpp
+    #drivers/src/TextDisplay.cpp
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
 )

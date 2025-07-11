@@ -14,32 +14,50 @@
 // 14.07.13 Test with real display and bugfix 
 // 18.10.13 Better Circle function from Michael Ammann
 // 22.10.13 Fixes for Kinetis Board - 8 bit spi
-// 26.01.14 Change interface for BMP_16 to also use SD-cards
-// 23.06.14 switch back to old Version - fork for L152 
-// 24.06.14 Add compiler flag for optimized L152 version
-// 25.06.14 Add optimized F103 version
-
-// exclude this file for platforms with optimized version
-#if defined TARGET_NUCLEO_L152RE || defined TARGET_NUCLEO_F103RB || defined TARGET_LPC1768
-// this platforms are supported by special version in different source file
-#else
 
 #include "SPI_TFT_ILI9341.h"
 #include "mbed.h"
 
 #define BPP         16                  // Bits per pixel    
-         
+            
+// ILI9341 initialization commands (Source: https://github.com/adafruit/Adafruit_ILI9341/blob/master/Adafruit_ILI9341.cpp)
+static const uint8_t initCommands[] = 
+{
+  0xEF, 3, 0x03, 0x80, 0x02,
+  0xCF, 3, 0x00, 0xC1, 0x30,
+  0xED, 4, 0x64, 0x03, 0x12, 0x81,
+  0xE8, 3, 0x85, 0x00, 0x78,
+  0xCB, 5, 0x39, 0x2C, 0x00, 0x34, 0x02,
+  0xF7, 1, 0x20,
+  0xEA, 2, 0x00, 0x00,
+  ILI9341_PWCTR1, 1, 0x23,
+  ILI9341_PWCTR2, 1, 0x10,
+  ILI9341_VMCTR1, 2, 0x3E, 0x28,
+  ILI9341_VMCTR2, 1, 0x86,
+  ILI9341_MADCTL, 1, (ILI9341_MADCTL_MX | ILI9341_MADCTL_BGR),
+  ILI9341_VSCRSADD, 1, 0x00,
+  ILI9341_PIXFMT, 1, 0x55,
+  ILI9341_FRMCTR1, 2, 0x00, 0x18,
+  ILI9341_DFUNCTR, 3, 0x08, 0x82, 0x27,
+  0xF2, 1, 0x00,
+  ILI9341_GAMMASET, 1, 0x01,
+  ILI9341_GMCTRP1, 15, 0x0F, 0x31, 0x2B, 0x0C, 0x0E, 0x08, 0x4E, 0xF1, 0x37, 0x07, 0x10, 0x03, 0x0E, 0x09, 0x00,
+  ILI9341_GMCTRN1, 15, 0x00, 0x0E, 0x14, 0x03, 0x11, 0x07, 0x31, 0xC1, 0x48, 0x08, 0x0F, 0x0C, 0x31, 0x36, 0x0F,
+  ILI9341_SLPOUT, 0x00,
+  ILI9341_DISPON, 0x00,
+  0x00 
+};
+
+
 //extern Serial pc;
 //extern DigitalOut xx;     // debug !!
 
 SPI_TFT_ILI9341::SPI_TFT_ILI9341(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char *name)
-    : GraphicsDisplay(name), SPI(mosi, miso, sclk,NC), _cs(cs), _reset(reset), _dc(dc)
+    : GraphicsDisplay(name), _spi(mosi, miso, sclk), _cs(cs), _dc(dc)
 {
-    
     orientation = 0;
     char_x = 0;
-    SPI::format(8,3);                  // 8 bit spi mode 3
-    SPI::frequency(10000000);          // 10 Mhz SPI clock
+    _reset = reset;
     tft_reset();
 }
 
@@ -63,16 +81,16 @@ void SPI_TFT_ILI9341::set_orientation(unsigned int o)
     wr_cmd(0x36);                     // MEMORY_ACCESS_CONTROL
     switch (orientation) {
         case 0:
-            SPI::write(0x48);
+            _spi.write(0x48);
             break;
         case 1:
-            SPI::write(0x28);
+            _spi.write(0x28);
             break;
         case 2:
-            SPI::write(0x88);
+            _spi.write(0x88);
             break;
         case 3:
-            SPI::write(0xE8);
+            _spi.write(0xE8);
             break;
     }
     _cs = 1; 
@@ -86,7 +104,7 @@ void SPI_TFT_ILI9341::wr_cmd(unsigned char cmd)
 {
     _dc = 0;
     _cs = 0;
-    SPI::write(cmd);      // mbed lib
+    _spi.write(cmd);      // mbed lib
     _dc = 1;
 }
 
@@ -94,257 +112,103 @@ void SPI_TFT_ILI9341::wr_cmd(unsigned char cmd)
 
 void SPI_TFT_ILI9341::wr_dat(unsigned char dat)
 {
-   SPI::write(dat);      // mbed lib
+   _spi.write(dat);      // mbed lib
 }
 
 
 
-// the ILI9341 can read 
+// the ILI9341 can read - has to be implemented later
+// A read will return 0 at the moment
 
-char SPI_TFT_ILI9341::rd_byte(unsigned char cmd)
-{
-    char r;
-    _dc = 0;
-    _cs = 0;
-    SPI::write(cmd);      // mbed lib
-    _cs = 1;
-    r = SPI::write(0xff);
-    _cs = 1;    
-    return(r);
-}
+//unsigned short SPI_TFT_ILI9341::rd_dat (void)
+//{
+//    unsigned short val = 0;
 
-// read 32 bit
-int SPI_TFT_ILI9341::rd_32(unsigned char cmd)
-{
-    int d;
-    char r;
-    _dc = 0;
-    _cs = 0;
-    d = cmd;
-    d = d << 1;
-    SPI::format(9,3);    // we have to add a dummy clock cycle
-    SPI::write(d);
-    SPI::format(8,3);   
-    _dc = 1;
-    r = SPI::write(0xff);
-    d = r;
-    r = SPI::write(0xff);
-    d = (d << 8) | r;
-    r = SPI::write(0xff);
-    d = (d << 8) | r;
-    r = SPI::write(0xff);
-    d = (d << 8) | r;
-    _cs = 1;    
-    return(d);
-}
+    //val = _spi.write(0x73ff);                /* Dummy read 1           */
+    //val   = _spi.write(0x0000);              /* Read D8..D15           */
+//    return (val);
+//}
 
-int  SPI_TFT_ILI9341::Read_ID(void){
-    int r;
-    r = rd_byte(0x0A);
-    r = rd_byte(0x0A);
-    r = rd_byte(0x0A);
-    r = rd_byte(0x0A);
-    return(r);
-}
 
 
 // Init code based on MI0283QT datasheet
 
 void SPI_TFT_ILI9341::tft_reset()
 {
-    _cs = 1;                           // cs high
-    _dc = 1;                           // dc high 
-    _reset = 0;                        // display reset
+  _spi.format(8, 3);
+  _spi.frequency(40000000);
+  _cs = 1;
+  _dc = 1;
+  
+  if (_reset != NC)
+    {
+        DigitalOut rst(_reset);
+        rst = 0;                       // display reset
+        wait_us(50);
+        rst = 1;                       // end hardware reset
+    }
+  
+  // Execute initialization commands for IL9341 chip
+  uint8_t index = 0x00;
+  uint8_t cmd = 0x00;
+  uint8_t numArgs = 0x00;
+  while((cmd = initCommands[index++]) > 0x00)
+  {
+    numArgs = initCommands[index++];
 
-    wait_us(50);
-    _reset = 1;                       // end hardware reset
-    ThisThread::sleep_for(5ms);
-     
-    wr_cmd(0x01);                     // SW reset  
-    ThisThread::sleep_for(5ms);
-    wr_cmd(0x28);                     // display off  
+    wr_cmd(cmd);
 
-    /* Start Initial Sequence ----------------------------------------------------*/
-     wr_cmd(0xCF);                     
-     SPI::write(0x00);
-     SPI::write(0x83);
-     SPI::write(0x30);
-     _cs = 1;
-     
-     wr_cmd(0xED);                     
-     SPI::write(0x64);
-     SPI::write(0x03);
-     SPI::write(0x12);
-     SPI::write(0x81);
-     _cs = 1;
-     
-     wr_cmd(0xE8);                     
-     SPI::write(0x85);
-     SPI::write(0x01);
-     SPI::write(0x79);
-     _cs = 1;
-     
-     wr_cmd(0xCB);                     
-     SPI::write(0x39);
-     SPI::write(0x2C);
-     SPI::write(0x00);
-     SPI::write(0x34);
-     SPI::write(0x02);
-     _cs = 1;
-           
-     wr_cmd(0xF7);                     
-     SPI::write(0x20);
-     _cs = 1;
-           
-     wr_cmd(0xEA);                     
-     SPI::write(0x00);
-     SPI::write(0x00);
-     _cs = 1;
-     
-     wr_cmd(0xC0);                     // POWER_CONTROL_1
-     SPI::write(0x26);
-     _cs = 1;
- 
-     wr_cmd(0xC1);                     // POWER_CONTROL_2
-     SPI::write(0x11);
-     _cs = 1;
-     
-     wr_cmd(0xC5);                     // VCOM_CONTROL_1
-     SPI::write(0x35);
-     SPI::write(0x3E);
-     _cs = 1;
-     
-     wr_cmd(0xC7);                     // VCOM_CONTROL_2
-     SPI::write(0xBE);
-     _cs = 1; 
-     
-     wr_cmd(0x36);                     // MEMORY_ACCESS_CONTROL
-     SPI::write(0x48);
-     _cs = 1; 
-     
-     wr_cmd(0x3A);                     // COLMOD_PIXEL_FORMAT_SET
-     SPI::write(0x55);                 // 16 bit pixel 
-     _cs = 1;
-     
-     wr_cmd(0xB1);                     // Frame Rate
-     SPI::write(0x00);
-     SPI::write(0x1B);               
-     _cs = 1;
-     
-     wr_cmd(0xF2);                     // Gamma Function Disable
-     SPI::write(0x08);
-     _cs = 1; 
-     
-     wr_cmd(0x26);                     
-     SPI::write(0x01);                 // gamma set for curve 01/2/04/08
-     _cs = 1; 
-     
-     wr_cmd(0xE0);                     // positive gamma correction
-     SPI::write(0x1F); 
-     SPI::write(0x1A); 
-     SPI::write(0x18); 
-     SPI::write(0x0A); 
-     SPI::write(0x0F); 
-     SPI::write(0x06); 
-     SPI::write(0x45); 
-     SPI::write(0x87); 
-     SPI::write(0x32); 
-     SPI::write(0x0A); 
-     SPI::write(0x07); 
-     SPI::write(0x02); 
-     SPI::write(0x07);
-     SPI::write(0x05); 
-     SPI::write(0x00);
-     _cs = 1;
-     
-     wr_cmd(0xE1);                     // negativ gamma correction
-     SPI::write(0x00); 
-     SPI::write(0x25); 
-     SPI::write(0x27); 
-     SPI::write(0x05); 
-     SPI::write(0x10); 
-     SPI::write(0x09); 
-     SPI::write(0x3A); 
-     SPI::write(0x78); 
-     SPI::write(0x4D); 
-     SPI::write(0x05); 
-     SPI::write(0x18); 
-     SPI::write(0x0D); 
-     SPI::write(0x38);
-     SPI::write(0x3A); 
-     SPI::write(0x1F);
-     _cs = 1;
-     
-     WindowMax ();
-     
-     //wr_cmd(0x34);                     // tearing effect off
-     //_cs = 1;
-     
-     //wr_cmd(0x35);                     // tearing effect on
-     //_cs = 1;
-      
-     wr_cmd(0xB7);                       // entry mode
-     SPI::write(0x07);
-     _cs = 1;
-     
-     wr_cmd(0xB6);                       // display function control
-     SPI::write(0x0A);
-     SPI::write(0x82);
-     SPI::write(0x27);
-     SPI::write(0x00);
-     _cs = 1;
-     
-     wr_cmd(0x11);                     // sleep out
-     _cs = 1;
-     
-    ThisThread::sleep_for(100ms);
-     
-     wr_cmd(0x29);                     // display on
-     _cs = 1;
-     
-    ThisThread::sleep_for(100ms);
+    if(numArgs == 0x00)
+    {
+      ThisThread::sleep_for(chrono::milliseconds(150));
+    }
+    else
+    {
+      uint8_t oldIndex = index;
+      for(; index < oldIndex + numArgs; index++)
+      {
+        _spi.write(initCommands[index]);
+      }
+    }
+
+    _cs = 1; 
+  }
      
  }
 
 
 void SPI_TFT_ILI9341::pixel(int x, int y, int color)
 {
-    wr_cmd(0x2A);
-    SPI::write(x >> 8);
-    SPI::write(x);
-    _cs = 1;
-    wr_cmd(0x2B);
-    SPI::write(y >> 8);
-    SPI::write(y);
-    _cs = 1;
-    wr_cmd(0x2C);  // send pixel
-    #if defined TARGET_KL25Z  // 8 Bit SPI
-    SPI::write(color >> 8);
-    SPI::write(color & 0xff);
-    #else 
-    SPI::format(16,3);                            // switch to 16 bit Mode 3
-    SPI::write(color);                              // Write D0..D15
-    SPI::format(8,3);
-    #endif
+    window(x, y, 1, 1); // Set window to single pixel
+    _spi.format(16, 3); // Set SPI format to 16 bits per pixel
+    _spi.write(color); // Write color data
+    _spi.format(8, 3); // Restore SPI format to 8 bits per
     _cs = 1;
 }
 
 
 void SPI_TFT_ILI9341::window (unsigned int x, unsigned int y, unsigned int w, unsigned int h)
 {
-    wr_cmd(0x2A);
-    SPI::write(x >> 8);
-    SPI::write(x);
-    SPI::write((x+w-1) >> 8);
-    SPI::write(x+w-1);
-    
-    _cs = 1;
-    wr_cmd(0x2B);
-    SPI::write(y >> 8);
-    SPI::write(y);
-    SPI::write((y+h-1) >> 8);
-    SPI::write(y+h-1);
-    _cs = 1;
+  uint16_t x2 = (x + w - 1);
+  uint16_t y2 = (y + h - 1);
+
+  wr_cmd(ILI9341_CASET);  // Column address set
+
+  _spi.format(16, 3);
+  _spi.write(x);
+  _spi.write(x2);
+  _spi.format(8, 3);
+  _cs = 1;
+
+  wr_cmd(ILI9341_PASET);  // Row address set
+
+  _spi.format(16, 3);
+  _spi.write(y);
+  _spi.write(y2);
+  _spi.format(8, 3);
+  _cs = 1;
+
+  wr_cmd(ILI9341_RAMWR);  // Write to RAM
 }
 
 
@@ -357,8 +221,24 @@ void SPI_TFT_ILI9341::WindowMax (void)
 
 void SPI_TFT_ILI9341::cls (void)
 {
-   // we can use the fillrect function 
-   fillrect(0,0,width()-1,height()-1,_background);
+    int pixel = ( width() * height());
+    WindowMax();
+    //wr_cmd(0x2C);  // send pixel
+    #if defined TARGET_KL25Z  // 8 Bit SPI
+    unsigned int i;
+    for (i = 0; i < ( width() * height()); i++){
+        _spi.write(_background >> 8);
+        _spi.write(_background & 0xff);
+        }
+    
+    #else 
+    _spi.format(16,3);                            // switch to 16 bit Mode 3
+    unsigned int i;
+    for (i = 0; i < ( width() * height()); i++)
+        _spi.write(_background);
+    _spi.format(8,3);    
+    #endif                         
+    _cs = 1; 
 }
 
 
@@ -406,16 +286,16 @@ void SPI_TFT_ILI9341::hline(int x0, int x1, int y, int color)
     #if defined TARGET_KL25Z  // 8 Bit SPI
     int j;
     for (j=0; j<w; j++) {
-        SPI::write(color >> 8);
-        SPI::write(color & 0xff);
+        _spi.write(color >> 8);
+        _spi.write(color & 0xff);
     } 
     #else 
-    SPI::format(16,3);                            // switch to 16 bit Mode 3
+    _spi.format(16,3);                            // switch to 16 bit Mode 3
     int j;
     for (j=0; j<w; j++) {
-        SPI::write(color);
+        _spi.write(color);
     }
-    SPI::format(8,3);
+    _spi.format(8,3);
     #endif
     _cs = 1;
     WindowMax();
@@ -430,15 +310,15 @@ void SPI_TFT_ILI9341::vline(int x, int y0, int y1, int color)
     wr_cmd(0x2C);  // send pixel
     #if defined TARGET_KL25Z  // 8 Bit SPI
     for (int y=0; y<h; y++) {
-        SPI::write(color >> 8);
-        SPI::write(color & 0xff);
+        _spi.write(color >> 8);
+        _spi.write(color & 0xff);
     } 
     #else 
-    SPI::format(16,3);                            // switch to 16 bit Mode 3
+    _spi.format(16,3);                            // switch to 16 bit Mode 3
     for (int y=0; y<h; y++) {
-        SPI::write(color);
+        _spi.write(color);
     }
-    SPI::format(8,3);
+    _spi.format(8,3);
     #endif
     _cs = 1;
     WindowMax();
@@ -546,18 +426,18 @@ void SPI_TFT_ILI9341::fillrect(int x0, int y0, int x1, int y1, int color)
     int w = x1 - x0 + 1;
     int pixel = h * w;
     window(x0,y0,w,h);
-    wr_cmd(0x2C);  // send pixel 
+    //wr_cmd(0x2C);  // send pixel 
     #if defined TARGET_KL25Z  // 8 Bit SPI
     for (int p=0; p<pixel; p++) {
-        SPI::write(color >> 8);
-        SPI::write(color & 0xff);
+        _spi.write(color >> 8);
+        _spi.write(color & 0xff);
     }
    #else
-    SPI::format(16,3);                            // switch to 16 bit Mode 3
+    _spi.format(16,3);                            // switch to 16 bit Mode 3
     for (int p=0; p<pixel; p++) {
-        SPI::write(color);
+        _spi.write(color);
     }
-    SPI::format(8,3);
+    _spi.format(8,3);
     #endif
     _cs = 1;
     WindowMax();
@@ -626,7 +506,7 @@ void SPI_TFT_ILI9341::character(int x, int y, int c)
     window(char_x, char_y,hor,vert); // char box
     wr_cmd(0x2C);  // send pixel
     #ifndef TARGET_KL25Z  // 16 Bit SPI 
-    SPI::format(16,3);   
+    _spi.format(16,3);   
     #endif                         // switch to 16 bit Mode 3
     zeichen = &font[((c -32) * offset) + 4]; // start of char bitmap
     w = zeichen[0];                          // width of actual char
@@ -636,24 +516,24 @@ void SPI_TFT_ILI9341::character(int x, int y, int c)
             b = 1 << (j & 0x07);
             if (( z & b ) == 0x00) {
                #ifndef TARGET_KL25Z  // 16 Bit SPI 
-                SPI::write(_background);
+                _spi.write(_background);
                #else
-                SPI::write(_background >> 8);
-                SPI::write(_background & 0xff);
+                _spi.write(_background >> 8);
+                _spi.write(_background & 0xff);
                 #endif
             } else {
                 #ifndef TARGET_KL25Z  // 16 Bit SPI
-                SPI::write(_foreground);
+                _spi.write(_foreground);
                 #else
-                SPI::write(_foreground >> 8);
-                SPI::write(_foreground & 0xff);
+                _spi.write(_foreground >> 8);
+                _spi.write(_foreground & 0xff);
                 #endif
             }
         }
     }
     _cs = 1;
     #ifndef TARGET_KL25Z  // 16 Bit SPI
-    SPI::format(8,3);
+    _spi.format(8,3);
     #endif
     WindowMax();
     if ((w + 2) < hor) {                   // x offset to next char
@@ -689,17 +569,17 @@ void SPI_TFT_ILI9341::Bitmap(unsigned int x, unsigned int y, unsigned int w, uns
     bitmap_ptr += ((h - 1)* (w + padd));
     wr_cmd(0x2C);  // send pixel
     #ifndef TARGET_KL25Z  // 16 Bit SPI 
-    SPI::format(16,3);
+    _spi.format(16,3);
     #endif                            // switch to 16 bit Mode 3
     for (j = 0; j < h; j++) {         //Lines
         for (i = 0; i < w; i++) {     // one line
             #if defined TARGET_KL25Z  // 8 Bit SPI
                 pix_temp = *bitmap_ptr;
-                SPI::write(pix_temp >> 8);
-                SPI::write(pix_temp);
+                _spi.write(pix_temp >> 8);
+                _spi.write(pix_temp);
                 bitmap_ptr++;
             #else
-                SPI::write(*bitmap_ptr);    // one line
+                _spi.write(*bitmap_ptr);    // one line
                 bitmap_ptr++;
             #endif
         }
@@ -708,13 +588,14 @@ void SPI_TFT_ILI9341::Bitmap(unsigned int x, unsigned int y, unsigned int w, uns
     }
     _cs = 1;
     #ifndef TARGET_KL25Z  // 16 Bit SPI 
-    SPI::format(8,3);
+    _spi.format(8,3);
     #endif
     WindowMax();
 }
 
 
-// local filesystem is not implemented in kinetis board , but you can add a SD card
+// local filesystem is not implemented in kinetis board
+#if DEVICE_LOCALFILESYSTEM
 
 int SPI_TFT_ILI9341::BMP_16(unsigned int x, unsigned int y, const char *Name_BMP)
 {
@@ -734,12 +615,15 @@ int SPI_TFT_ILI9341::BMP_16(unsigned int x, unsigned int y, const char *Name_BMP
     unsigned short *line;
 
     // get the filename
-    i=0;
+    LocalFileSystem local("local");
+    sprintf(&filename[0],"/local/");
+    i=7;
     while (*Name_BMP!='\0') {
         filename[i++]=*Name_BMP++;
     }
-    filename[i] = 0;  
-    
+
+    fprintf(stderr, "filename : %s \n\r",filename);
+
     FILE *Image = fopen((const char *)&filename[0], "rb");  // open the bmp file
     if (!Image) {
         return(0);      // error file not found !
@@ -778,30 +662,24 @@ int SPI_TFT_ILI9341::BMP_16(unsigned int x, unsigned int y, const char *Name_BMP
         padd ++;
     } while ((PixelWidth * 2 + padd)%4 != 0);
 
+
+//fseek(Image, 70 ,SEEK_SET);
     window(x, y,PixelWidth ,PixelHeigh);
-    wr_cmd(0x2C);  // send pixel
-    #ifndef TARGET_KL25Z // only 8 Bit SPI 
-    SPI::format(16,3);  
-    #endif                          // switch to 16 bit Mode 3
+    wr_cmd(0x2C);  // send pixel 
+    _spi.format(16,3);                            // switch to 16 bit Mode 3
     for (j = PixelHeigh - 1; j >= 0; j--) {               //Lines bottom up
         off = j * (PixelWidth  * 2 + padd) + start_data;   // start of line
         fseek(Image, off ,SEEK_SET);
-        fread(line,1,PixelWidth * 2,Image);       // read a line - slow 
+        fread(line,1,PixelWidth * 2,Image);       // read a line - slow !
         for (i = 0; i < PixelWidth; i++) {        // copy pixel data to TFT
-        #ifndef TARGET_KL25Z // only 8 Bit SPI
-            SPI::write(line[i]);                  // one 16 bit pixel
-        #else  
-            SPI::write(line[i] >> 8);
-            SPI::write(line[i]);
-        #endif    
+            _spi.write(line[i]);                  // one 16 bit pixel
         } 
      }
     _cs = 1;
-    SPI::format(8,3);
+    _spi.format(8,3);
     free (line);
     fclose(Image);
     WindowMax();
     return(1);
 }
-
 #endif

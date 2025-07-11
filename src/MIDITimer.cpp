@@ -7,7 +7,7 @@ extern uint32_t control; // Control mask for beats
 extern uint8_t channelEnabled[16]; // Channel enable flags
 extern uint8_t channels[16]; // Active channels
 extern USBMIDI midi; // MIDI interface instance
-extern uint8_t beat; // Current beat index
+extern int8_t beat; // Current beat index
 
 MIDITimer::MIDITimer(Callback <void()> timeoutCallback) : _timeoutCallback(timeoutCallback) {
     // Constructor initializes the timer state
@@ -73,9 +73,10 @@ void MIDITimer::beatPlay() {
     for (int i = 0; i < 10; i++) {
         index = i * 32 + beat;
         if (midiMessages[index][0] != 0) {
+            /*
             if (channelEnabled[midiMessages[index][0] & 0xF] == 0) {
                 continue; // Skip if channel is disabled
-            }
+            }*/
             midi.write(MIDIMessage::NoteOn(midiMessages[index][1], midiMessages[index][2], midiMessages[index][0] & 0xF));
         }
     }
