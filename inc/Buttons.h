@@ -1,20 +1,7 @@
 #pragma once
-#include "mbed.h"
-#include <map>
+#include "definitions.h"
 
-struct holdKey {
-    uint8_t beatStart;
-    uint8_t channel;
-    uint8_t midiNote;
-};
 
-struct CompareHoldKey {
-    bool operator()(const holdKey& a1, const holdKey& a2) const {
-        if (a1.beatStart != a2.beatStart) return a1.beatStart < a2.beatStart;
-        if (a1.channel != a2.channel) return a1.channel < a2.channel;
-        return a1.midiNote < a2.midiNote;
-    }
-};
 
 // GRB Button Colors
 #define BlueBtn 0xb525e700

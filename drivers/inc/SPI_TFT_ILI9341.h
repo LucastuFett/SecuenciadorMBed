@@ -283,6 +283,8 @@
    */    
   void Bitmap(unsigned int x, unsigned int y, unsigned int w, unsigned int h,unsigned char *bitmap);
     
+  int puts(const char *string);
+
 #if DEVICE_LOCALFILESYSTEM
    /** Paint a 16 bit BMP from local filesytem on the TFT (slow) 
    *

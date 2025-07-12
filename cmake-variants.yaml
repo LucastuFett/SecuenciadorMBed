@@ -29,16 +29,16 @@ board:
         # - target specific: STLINK, STM32CUBE, LINKSERVER, PICOTOOL, ARDUINO_BOSSAC
         # For more visit - https://github.com/mbed-ce/mbed-os/wiki/Upload-Methods#upload-method-list
         UPLOAD_METHOD: STLINK
-    NUCLEO_F103RB: # Name of one variant
-      short: NUCLEO_F103RB # Short name of the variant
+    RASPBERRY_PI_PICO_SWD: # Name of one variant
+      short: RASPBERRY_PI_PICO_SWD # Short name of the variant
       settings:
-        MBED_TARGET: NUCLEO_F103RB # Your mbed target name from targets.json5 file
+        MBED_TARGET: RASPBERRY_PI_PICO_SWD # Your mbed target name from targets.json5 file
         # Fill your upload method according to variants below
         # - universal: NONE, MBED, JLINK, PYOCD, OPENOCD
         # - target specific: STLINK, STM32CUBE, LINKSERVER, PICOTOOL, ARDUINO_BOSSAC
         # For more visit - https://github.com/mbed-ce/mbed-os/wiki/Upload-Methods#upload-method-list
-        UPLOAD_METHOD: STLINK
-        #OPENOCD_CHIP_CONFIG_COMMANDS: -f /Users/lucasgutie/SecuenciadorMBed/openocd.cfg
+        UPLOAD_METHOD: OPENOCD
+        #OPENOCD_CHIP_CONFIG_COMMANDS: -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000"
         #MBED_UPLOAD_SERIAL_NUMBER: 152F04023212354D434B4E00
     RASPBERRY_PI_PICO: # Name of one variant
       short: RASPBERRY_PI_PICO # Short name of the variant

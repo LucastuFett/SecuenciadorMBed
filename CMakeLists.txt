@@ -10,6 +10,7 @@ cmake_policy(VERSION 3.19...3.22)
 
 #[[ Set path of mbed_app.json (necessary at all times) ]]
 set(MBED_APP_JSON_PATH mbed_app.json5)
+set(OPENOCD_UPLOAD_ENABLED TRUE)
 
 ###--------------------------------------------------------------------------------------------------- 
 #[[ This part is dedicated for custom targets only! The settings below activate targets from
@@ -73,11 +74,12 @@ add_executable(${PROJECT_NAME}
     src/main.cpp 
     src/MIDITimer.cpp
     src/Buttons.cpp
+    src/Screen.cpp
     drivers/src/WS2812.cpp
     drivers/src/Encoder.cpp
-    #drivers/src/GraphicsDisplay.cpp
-    drivers/src/ILI9341.cpp
-    #drivers/src/TextDisplay.cpp
+    drivers/src/GraphicsDisplay.cpp
+    drivers/src/SPI_TFT_ILI9341.cpp
+    drivers/src/TextDisplay.cpp
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
 )
