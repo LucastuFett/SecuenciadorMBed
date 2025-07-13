@@ -36,6 +36,11 @@ struct CompareHoldKey {
     }
 };
 
+// Constants
+#define SCALE_COUNT 3
+
+const scale scales[SCALE_COUNT] = {{"Major", {2,2,1,2,2,2,0,0,0,0,0,0}}, {"Minor", {2,1,2,2,1,2,0,0,0,0,0,0}}, {"Chrom", {1,1,1,1,1,1,1,1,1,1,1}}};
+
 /*
 song songs[4] = {
     {

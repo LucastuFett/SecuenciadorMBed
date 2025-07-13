@@ -1,45 +1,10 @@
 #include "Screen.h"
 
-// Constants
-
-const string labels[10][8] = {{"Program", "Play", "Launch", "DAW","","","",""},
-				{"Note", "Play/Pause", "Stop", "Hold","Memory","Channel","Tempo","Scale"},
-				{"Accept", "Octave -", "Octave +", "Cancel","","","",""},
-				{"Save","Shift","Backspace","Load","","Special","Space",""},
-				{"Accept","Bank -","Bank +","Cancel","","Rename","Delete",""},
-				{"Save","Shift","Backspace","Cancel","","Special","Space",""},
-				{"Accept","","","Cancel","","","",""},
-				{"Accept","Internal","External","Cancel","","","",""},
-				{"Accept","Mode -","Mode +","Cancel","","","",""},
-				{"Play/Pause","Bank -","Bank +","Stop","","","",""}};
-
-const string titles[] = {"Main - Config", 
-				"Programming", 
-				"Edit Note",
-				"Memory",
-				"Save/Load",
-				"Rename",
-				"Edit Channel",
-				"Edit Tempo",
-				"Edit Scale",
-				"Play"};
-				
-const char letters[] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
- 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
-
-const char shLetters[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
- 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
-
-const char special[] = {'0','1','2','3','4','5','6','7','8','9','\'','.',',','/',':',';','-','_','?','!','"'};
-
-
-
 // Global variables for MIDI messages and control
 extern enum state mainState;
-extern uint8_t midiMessages[320][3]; // MIDI messages for each beat
-extern uint8_t offMessages[320][3]; // Off messages for each beat
-extern uint32_t control; // Control mask for beats
-extern uint8_t channels[16]; // Active channels
+extern int8_t tone;
+extern int8_t mode;
+extern int16_t tempo[2];
 extern int8_t beat; // Current beat index
 extern int8_t note;
 extern int8_t octave;
@@ -62,13 +27,11 @@ Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName res
 		_upper = false;
 		_selectedFile = 0;
 		_currentFile = 0;
-
+		_curOctave = 2;
 		
 		set_orientation(1);
 		background(Black);    // set background to Black
 		foreground(White);    // set chars to white
-
-		
 	}
 
 void Screen::start() {
@@ -124,11 +87,18 @@ void Screen::start() {
 void Screen::updateText(){
 	// Cover the previous title
 	fillrect(0,0,320,35, Black);
+	fillrect(240,0,320,70, Black);
 	// Display the title
 	set_font((unsigned char*) Arial24x23);
-	locate(65,5);
-	puts(titles[mainState].c_str());
-
+	if (mainState == PROG) {
+		locate(245,10);
+		puts("Prog");
+		locate(245,35);
+		puts("ram");
+	}else {
+		locate(65,5);
+		puts(titles[mainState].c_str());
+	}
 	// Cover the previous labels
 	fillrect(5,225,80,239, Black);
 	fillrect(83,225,158,239, Black);
@@ -169,6 +139,244 @@ void Screen::updateText(){
 	foreground(White);
 }
 
+void Screen::showMenu(bool show) {
+	if (show) {
+		// Draw Sides
+		fillrect(2,30,68,31,Cyan);
+		fillrect(2,30,3,180,Cyan);
+		fillrect(68,30,69,180,Cyan);
+		fillrect(2,180,68,181,Cyan);
+		fillrect(2,80,68,81,Cyan);
+		fillrect(2,130,68,131,Cyan);
+
+		// Draw Velocity Circle
+		circle(280,120,16, White);
+
+		updateMenuText(0); // Update the menu text for all menus
+
+	} else {
+		fillrect(0,30,70,181, Black); // Hide the menu
+		fillrect(250,80,300,200, Black); // Hide the velocity circle and text
+	}
+}
+
+void Screen::updateMenuText(uint8_t menu) {
+	// Update the menu text based on the current state
+	switch (menu) {
+		case 0: // All Menus
+			locate(6,43);
+			puts("Channel");
+			locate(33,65);
+			puts(to_string(channel + 1).c_str());
+
+			locate(12,93);
+			puts("Tempo");
+			locate(8,115);
+			puts(((to_string(tempo[1]))+"BPM").c_str());
+
+			locate(18,143);
+			puts("Scale");
+			locate(6,165);
+			puts((tones[tone] + " " + scales[mode].name).c_str());
+
+			locate(270,90);
+			puts("Vel");
+			locate(268,116);
+			puts(to_string(velocity).c_str());
+
+			locate(270,160);
+			puts("1-16");
+			locate(270,180);
+			foreground(DarkGrey);
+			puts("17-32");
+			foreground(White);
+			break;
+		default:
+			break;
+	}
+}
+
+void Screen::getPossible() {
+	// possible = [[note, note2],[style, style2]]
+	int8_t actKey = tone;
+	possible[0].clear();
+	possible[1].clear();
+	
+	possible[0].push_back(tone);
+	possible[1].push_back(Magenta);
+
+	for (uint8_t i = 0; i < 12; i++) {
+		if (scales[mode].intervals[i] == 0) break;
+	
+		actKey += scales[mode].intervals[i];
+		if (actKey > 11) {
+			actKey -= 12;
+		}
+		possible[0].push_back(actKey);
+		possible[1].push_back(Blue);
+
+	}
+}
+
+void Screen::paintScales(){
+	int8_t pos = -1;
+	fillrect(72,10,78,203, Black); // Clear the scale area
+	for (uint8_t i = 0; i < possible[0].size(); i++) {
+		// Paint Scale Notes
+		fillrect(72,201 - (possible[0][i] * 8) - 4, 78, 201 - (possible[0][i] * 8), possible[1][i]);
+		fillrect(72,104 - (possible[0][i] * 8) - 4, 78, 104 - (possible[0][i] * 8), possible[1][i]);
+		if (note == possible[0][i]) {
+			pos = i;
+		}
+	}
+
+	// If necessary, change the current octave to match
+	uint8_t offset = 0;
+	if (octave == _curOctave - 1) _curOctave -= 2;
+	if (octave == _curOctave + 2) _curOctave += 2;
+	if (octave == _curOctave + 1) offset += 97;
+
+	// If the note was in the scale, paint it green for selected, if not orange for selected
+	if (pos != -1) fillrect(72, 201 - (possible[0][pos] * 8) - 4 - offset, 78, 201 - (possible[0][pos] * 8) - offset, Green);
+	else fillrect(72, 201 - (note * 8) - 4 - offset, 78, 201 - (possible[0][pos] * 8) - offset, Orange);
+
+	// Write the Current Octave down in C
+	locate(48,195);
+	puts(("C" + to_string(_curOctave)).c_str());
+}
+
+void Screen::showPiano(bool show){
+	const uint8_t blackOffset[] = {7, 23, 39, 63, 79, 103, 119, 135, 159, 175};
+	const uint8_t whiteOffset[] = {55, 95, 151};
+	if (show) {
+		// Draw Piano Roll
+		for (uint8_t i = 0; i < 144; i += 9) {
+			// Vertical Lines
+			line(94 + i, 11, 94 + i, 202, LightGrey);
+		}
+
+		for (uint8_t i = 0; i < 192; i += 8) {
+			// Horizontal Lines
+			line(94, 10 + i, 238, 10 + i, LightGrey);
+		}
+
+		// Draw Piano
+		fillrect(81,11,93,202, White);
+		for (uint8_t i = 0; i < 10; i ++){
+			rect(81, 11 + blackOffset[i], 89, 19 + blackOffset[i], DarkGrey);
+			fillrect(81, 12 + blackOffset[i], 88, 18 + blackOffset[i], Black);
+			line(90, 15 + blackOffset[i], 93, 15 + blackOffset[i], DarkGrey);
+		}
+		for (uint8_t i = 0; i < 3; i ++){
+			line(81, 11 + whiteOffset[i], 93, 11 + whiteOffset[i], DarkGrey);
+		}
+
+		// Draw Bounding Box
+		rect(80,10,238,203, Cyan);
+		line(94,106,238,106, Cyan);
+		line(166,11,166,202, Cyan);
+
+		// Draw Selected Scale
+		getPossible();
+		paintScales();
+	} else {
+		fillrect(0, 30, 320, 180, Black); // Hide the piano roll
+	}
+}
+
+void Screen::paintGrid() {
+	uint8_t gridBeat = 16;
+	int8_t gridNote = 11;
+	uint8_t gridOctave = _curOctave;
+	uint16_t bptIndex;
+	uint32_t beatMask = 0;
+	for(uint8_t i = 0; i < 16; i++){
+		gridBeat --;
+		gridNote = 11;
+		gridOctave = _curOctave + 1;
+
+		for(uint8_t j = 0; j < 24; j++){
+			int8_t indNote = gridNote;
+			if (gridNote < 0) {
+				indNote = gridNote + 12;
+				if (gridOctave == _curOctave + 1) gridOctave --;
+			}
+			uint8_t num = gridBeat;
+			if (mode32 && half) num += 16;
+			bptIndex = (indNote + (gridOctave *12)) * 16 + channel;
+			beatMask = 0x80000000 >> num;
+			uint16_t xStart = 95 + (gridBeat * 9);
+			uint16_t yStart = 11 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+			uint16_t xEnd = 102 + (gridBeat * 9);
+			uint16_t yEnd = 17 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+			if((beatsPerTone[bptIndex] & beatMask) != 0) { 
+				if(count(possible[0].begin(),possible[0].end(),indNote)){
+					if(note == indNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
+					else if (indNote == possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
+					else fillrect(xStart, yStart, xEnd, yEnd, Blue);
+				} 
+				else {
+					if(note == indNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Orange);
+					else fillrect(xStart, yStart, xEnd, yEnd, Red);					
+				}
+			}else fillrect(xStart, yStart, xEnd, yEnd, Black);
+
+			gridNote--;
+		}
+	}
+	for (const auto &i : holded ) {
+        uint8_t endBeat = i.second;
+		uint8_t firstBeat = i.first.beatStart;
+		bool n = firstBeat >= 16;
+		bool e = endBeat >= 16;
+
+		if (((!mode32) && (n || e)) || (n && !half) || ((!n) && (!e) && mode32 && half)) continue;
+		
+		if (e && half) endBeat -= 16;
+		else if ((n && !e) || (e && !half)) endBeat = 15;
+
+		if (n) firstBeat -= 16;
+		else if (!n && e && half) firstBeat == 0;
+
+		// If it's the correct channel, and the note does not overflow the current limits
+		if ((i.first.channel == channel) && (i.first.midiNote >= (_curOctave * 12 + 24) && i.first.midiNote < (_curOctave + 2) * 12 + 24)){
+			uint8_t holdNote = (i.first.midiNote - 24) % 12;
+			gridNote = 11 - ((i.first.midiNote - 24) % 12);
+			gridOctave = (i.first.midiNote - 24) / 12;
+			//uint8_t gridEnd = 15 - endBeat;
+
+			for(gridBeat = firstBeat; gridBeat <= endBeat; gridBeat ++) {
+				uint16_t xStart = 95 + (gridBeat * 9);
+				uint16_t yStart = 11 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+				uint16_t xEnd = 102 + (gridBeat * 9);
+				uint16_t yEnd = 17 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+				if(count(possible[0].begin(),possible[0].end(),holdNote)){
+					if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
+					else if (holdNote == possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
+					else fillrect(xStart, yStart, xEnd, yEnd, Blue);
+				} 
+				else {
+					if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Orange);
+					else fillrect(xStart, yStart, xEnd, yEnd, Red);					
+				}		
+			}
+		}
+    }
+}
+
 void Screen::updateScreen() {
 	updateText();
+	switch (mainState) {
+		case MAIN:
+			showMenu(false);
+			showPiano(false);
+			break;
+		case PROG:
+			showMenu(true);
+			showPiano(true);
+			paintGrid();
+			break;
+		default:
+			break;
+	}
 }

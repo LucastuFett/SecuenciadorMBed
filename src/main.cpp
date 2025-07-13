@@ -7,7 +7,6 @@
 #include "Screen.h"
 #include "definitions.h"
 
-#define SCALE_COUNT 3
 
 // Hardware
 
@@ -34,7 +33,7 @@ DigitalIn toggle32(p28, PullNone);
 BufferedSerial midiUART(p12, p13, 31250); // MIDI UART
 WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
 Encoder encoder(p6, p7, PullUp); // Encoder for tempo adjustment
-Screen TFT(p3,p0,p2,p1,NC,p4,"TFT");
+Screen screen(p3,p0,p2,p1,NC,p4,"TFT");
 
 USBMIDI midi;
 
@@ -62,7 +61,6 @@ Buttons buttons;
 
 // Programming Mode
 
-const scale scales[SCALE_COUNT] = {{"Major", {2,2,1,2,2,2}}, {"Minor", {2,1,2,2,1,2}}, {"Chrom", {1,1,1,1,1,1,1,1,1,1,1}}};
 
 enum state mainState = MAIN;
 //uint8_t midiMessages[320][3] = {{0}};
@@ -472,7 +470,7 @@ void right() {
 }
 
 void changeState() {
-    TFT.updateScreen();
+    screen.updateScreen();
     // Update Buttons Colors
     tempoChange();
 }
@@ -573,11 +571,17 @@ int main()
     }
     // Set and Attach Trigger
     timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1]));
-    TFT.start();
+    screen.start();
     //ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
     //ledThread.start(changeLED); // Start LED change thread
     //encthread.start(do_enc);
     ThisThread::sleep_for(500ms); // Wait for the TFT to initialize
+    beatsPerTone[576] = 0x10400000;
+    beatsPerTone[608] = 0x00400000;
+    holdKey holdTest = {0,0,60};
+    holded.emplace(holdTest,5);
+    holdKey holdTest2 = {9,0,62};
+    holded.emplace(holdTest2,14);
     mainState = PROG;
     changeState(); // Initial state change
 

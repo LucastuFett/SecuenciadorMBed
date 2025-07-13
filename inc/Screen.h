@@ -2,6 +2,39 @@
 #include "definitions.h"
 #include "SPI_TFT_ILI9341.h"
 
+// Constants
+
+const string labels[10][8] = {{"Program", "Play", "Launch", "DAW","","","",""},
+				{"Note", "Play/Pause", "Stop", "Hold","Memory","Channel","Tempo","Scale"},
+				{"Accept", "Octave -", "Octave +", "Cancel","","","",""},
+				{"Save","Shift","Backspace","Load","","Special","Space",""},
+				{"Accept","Bank -","Bank +","Cancel","","Rename","Delete",""},
+				{"Save","Shift","Backspace","Cancel","","Special","Space",""},
+				{"Accept","","","Cancel","","","",""},
+				{"Accept","Internal","External","Cancel","","","",""},
+				{"Accept","Mode -","Mode +","Cancel","","","",""},
+				{"Play/Pause","Bank -","Bank +","Stop","","","",""}};
+
+const string titles[] = {"Main - Config", 
+				"Programming", 
+				"Edit Note",
+				"Memory",
+				"Save/Load",
+				"Rename",
+				"Edit Channel",
+				"Edit Tempo",
+				"Edit Scale",
+				"Play"};
+				
+const char letters[] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+ 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+
+const char shLetters[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+ 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
+
+const char special[] = {'0','1','2','3','4','5','6','7','8','9','\'','.',',','/',':',';','-','_','?','!','"'};
+
+const string tones[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 class Screen : public SPI_TFT_ILI9341 {
     uint8_t _typePointer;
@@ -12,10 +45,29 @@ class Screen : public SPI_TFT_ILI9341 {
     bool _upper;
     uint8_t _selectedFile;
     uint8_t _currentFile;
+    uint8_t _curOctave;
+    vector <uint16_t> possible[2];
 
     // Updates Screen Text, Leaving Graphics
     void updateText();
     
+    // Shows or Hides Menus
+    void showMenu(bool show);
+
+    // Updates Menu Text
+    void updateMenuText(uint8_t menu);
+
+    // Shows or Hides Piano Roll
+    void showPiano(bool show);
+
+    // Get Possible Notes for the current scale
+    void getPossible();
+
+    // Paint Scales and Selected Notes
+    void paintScales();
+
+    // Paint Grid
+    void paintGrid();
 public:
     // Constructor
     Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char* name ="TFT");
