@@ -11,7 +11,7 @@
 
 class Buttons {
     uint8_t _holdTemporary;
-    uint32_t _ledData[16];
+    
 public:
     // Constructor
     Buttons();

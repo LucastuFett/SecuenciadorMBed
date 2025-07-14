@@ -16,11 +16,12 @@ extern int8_t velocity;
 extern uint32_t beatsPerTone[1536]; // Beats per tone structure
 extern map<holdKey,uint8_t,CompareHoldKey> holded; // Holds the start and end of held notes
 extern uint8_t hold; // Hold state: 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
+extern uint32_t ledData[16];
 
 Buttons::Buttons(){
 	_holdTemporary = 0;
 	for (uint8_t i = 0; i < 16; i++) {
-		_ledData[i] = 0x00000000;
+		ledData[i] = 0x00000000;
 	}
 }
 
@@ -153,13 +154,13 @@ void Buttons::press(uint8_t num){
 void Buttons::updateColors(){
 	uint16_t bptIndex = (note + (octave * 12)) * 16 + channel;
 	uint32_t beatMask = 0;
-	for (uint8_t i = 0; i < 16; i++) _ledData[i] = 0x00000000;
+	for (uint8_t i = 0; i < 16; i++) ledData[i] = 0x00000000;
 	//TODO: If in Play or Channel, use buttons to turn off/on channels, when turning off send AllNotesOff
 	for (uint8_t i = 0; i < 16; i++) {
 		uint8_t num = i;
 		if (mode32 && half)	num += 16;
 		beatMask = 0x80000000 >> num;
-		if ((beatsPerTone[bptIndex] & beatMask) != 0) _ledData[i] = BlueBtn;
+		if ((beatsPerTone[bptIndex] & beatMask) != 0) ledData[i] = BlueBtn;
 		holdKey key = {num, uint8_t(channel), uint8_t(note + octave * 12 + 24)};
 		if (auto search = holded.find(key); search != holded.end()){
 			// If not in mode32, if num >= 16 or endBeat >= 16, continue
@@ -175,27 +176,27 @@ void Buttons::updateColors(){
 			else if (n && !e) endBeat = 15;
 			else if (e && !half) endBeat = 16;
 			
-			if ((!half) || (!mode32) || (n & e))  _ledData[i] = RedBtn;
+			if ((!half) || (!mode32) || (n & e))  ledData[i] = RedBtn;
 				
 			if ((!n) && e && half){
-				for (uint8_t j = 0; j < endBeat; j++) _ledData[i] = OrangeBtn;
+				for (uint8_t j = 0; j < endBeat; j++) ledData[i] = OrangeBtn;
 			}else{
-				for (uint8_t j = i + 1; j < endBeat; j++) _ledData[i] = OrangeBtn;
+				for (uint8_t j = i + 1; j < endBeat; j++) ledData[i] = OrangeBtn;
 			}
-			if (half || (!e)) _ledData[endBeat] = RedBtn;
+			if (half || (!e)) ledData[endBeat] = RedBtn;
 		}
 		holdKey iKey = {i, uint8_t(channel), uint8_t(note + octave * 12 + 24)};
 		if (auto search = holded.find(iKey); search != holded.end() && mode32 && half){
 			if (holded.at(iKey) > 15){
 				for (uint8_t j = 0; j < holded.at(iKey) - 16; j++) {
-					_ledData[j] = OrangeBtn;
+					ledData[j] = OrangeBtn;
 				}
-				_ledData[holded.at(iKey) - 16] = RedBtn;
+				ledData[holded.at(iKey) - 16] = RedBtn;
 			}
 		}
 		//if (note+octave*12+24 != lastNote and lastNote != 0): //Agregar cuando se pasa de 16 a 32
 		//	listbtn[i].add_theme_stylebox_override("normal",greyStyle)
-		if (beat == num) _ledData[i] = PurpleBtn; // Highlight current beat	
+		if (beat == num) ledData[i] = PurpleBtn; // Highlight current beat	
 	}
 }
 

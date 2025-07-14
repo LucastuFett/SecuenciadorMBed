@@ -84,20 +84,72 @@ void Screen::start() {
 	foreground(White);
 }
 
+bool Screen::getCurPointer() {
+	return _curPointer;
+}
+
+bool Screen::getUpper() {
+	return _upper;
+}
+
+void Screen::setEdit(int8_t edit){
+	_edit = edit;
+}
+
+void Screen::setCurPointer(bool curPointer){
+	_curPointer = curPointer;
+}
+
+void Screen::setCurPointer(bool upper){
+	_upper = upper;
+}
+
 void Screen::updateText(){
 	// Cover the previous title
 	fillrect(0,0,320,35, Black);
 	fillrect(240,0,320,70, Black);
 	// Display the title
 	set_font((unsigned char*) Arial24x23);
-	if (mainState == PROG) {
-		locate(245,10);
-		puts("Prog");
-		locate(245,35);
-		puts("ram");
-	}else {
-		locate(65,5);
-		puts(titles[mainState].c_str());
+	switch(mainState) {
+		case PROG:
+			locate(245,10);
+			puts("Prog");
+			locate(245,35);
+			puts("ram");
+			break;
+
+		case NOTE:
+			locate(245,10);
+			puts("Edit");
+			locate(245,35);
+			puts("Note");
+			break;
+
+		case CHANNEL:
+			locate(245,10);
+			puts("Edit");
+			locate(245,35);
+			puts("Chan");
+			break;
+
+		case SCALE:
+			locate(245,10);
+			puts("Edit");
+			locate(245,35);
+			puts("Scal");
+			break;
+
+		case TEMPO:
+			locate(245,10);
+			puts("Edit");
+			locate(245,35);
+			puts("Temp");
+			break;
+
+		default:
+			locate(65,5);
+			puts(titles[mainState].c_str());
+			break;
 	}
 	// Cover the previous labels
 	fillrect(5,225,80,239, Black);
@@ -140,7 +192,7 @@ void Screen::updateText(){
 }
 
 void Screen::showMenu(bool show) {
-	if (show) {
+	if (show && !_menu) {
 		// Draw Sides
 		fillrect(2,30,68,31,Cyan);
 		fillrect(2,30,3,180,Cyan);
@@ -153,10 +205,11 @@ void Screen::showMenu(bool show) {
 		circle(280,120,16, White);
 
 		updateMenuText(0); // Update the menu text for all menus
-
-	} else {
+		_menu = true;
+	} else if (!show && _menu) {
 		fillrect(0,30,70,181, Black); // Hide the menu
 		fillrect(250,80,300,200, Black); // Hide the velocity circle and text
+		_menu = false;
 	}
 }
 
@@ -191,6 +244,49 @@ void Screen::updateMenuText(uint8_t menu) {
 			puts("17-32");
 			foreground(White);
 			break;
+
+		case 1: // Channel
+			fillrect(33,59,67,71,Black);
+			locate(33,65);
+			puts(to_string(channel + 1).c_str());
+			break;
+
+		case 2: // Tempo
+			fillrect(8,109,67,121,Black);
+			locate(8,115);
+			puts(((to_string(tempo[1]))+"BPM").c_str());
+			break;
+
+		case 3: // Scale
+			fillrect(6,159,67,171,Black);
+			locate(6,165);
+			puts((tones[tone] + " " + scales[mode].name).c_str());
+			break;
+
+		case 4: // Velocity
+			fillcircle(280,120,15, Black);
+			locate(268,116);
+			puts(to_string(velocity).c_str());
+			break;
+
+		case 5: // Half
+			if (!half || !mode32) {
+				locate(270,160);
+				puts("1-16");
+				locate(270,180);
+				foreground(DarkGrey);
+				puts("17-32");
+				foreground(White);				
+			} else {
+				locate(270,160);
+				foreground(DarkGrey);
+				puts("1-16");
+				locate(270,180);
+				foreground(White);
+				puts("17-32");
+			}
+			break;
+
 		default:
 			break;
 	}
@@ -199,11 +295,11 @@ void Screen::updateMenuText(uint8_t menu) {
 void Screen::getPossible() {
 	// possible = [[note, note2],[style, style2]]
 	int8_t actKey = tone;
-	possible[0].clear();
-	possible[1].clear();
+	_possible[0].clear();
+	_possible[1].clear();
 	
-	possible[0].push_back(tone);
-	possible[1].push_back(Magenta);
+	_possible[0].push_back(tone);
+	_possible[1].push_back(Magenta);
 
 	for (uint8_t i = 0; i < 12; i++) {
 		if (scales[mode].intervals[i] == 0) break;
@@ -212,8 +308,8 @@ void Screen::getPossible() {
 		if (actKey > 11) {
 			actKey -= 12;
 		}
-		possible[0].push_back(actKey);
-		possible[1].push_back(Blue);
+		_possible[0].push_back(actKey);
+		_possible[1].push_back(Blue);
 
 	}
 }
@@ -221,11 +317,11 @@ void Screen::getPossible() {
 void Screen::paintScales(){
 	int8_t pos = -1;
 	fillrect(72,10,78,203, Black); // Clear the scale area
-	for (uint8_t i = 0; i < possible[0].size(); i++) {
+	for (uint8_t i = 0; i < _possible[0].size(); i++) {
 		// Paint Scale Notes
-		fillrect(72,201 - (possible[0][i] * 8) - 4, 78, 201 - (possible[0][i] * 8), possible[1][i]);
-		fillrect(72,104 - (possible[0][i] * 8) - 4, 78, 104 - (possible[0][i] * 8), possible[1][i]);
-		if (note == possible[0][i]) {
+		fillrect(72,201 - (_possible[0][i] * 8) - 4, 78, 201 - (_possible[0][i] * 8), _possible[1][i]);
+		fillrect(72,104 - (_possible[0][i] * 8) - 4, 78, 104 - (_possible[0][i] * 8), _possible[1][i]);
+		if (note == _possible[0][i]) {
 			pos = i;
 		}
 	}
@@ -237,8 +333,8 @@ void Screen::paintScales(){
 	if (octave == _curOctave + 1) offset += 97;
 
 	// If the note was in the scale, paint it green for selected, if not orange for selected
-	if (pos != -1) fillrect(72, 201 - (possible[0][pos] * 8) - 4 - offset, 78, 201 - (possible[0][pos] * 8) - offset, Green);
-	else fillrect(72, 201 - (note * 8) - 4 - offset, 78, 201 - (possible[0][pos] * 8) - offset, Orange);
+	if (pos != -1) fillrect(72, 201 - (_possible[0][pos] * 8) - 4 - offset, 78, 201 - (_possible[0][pos] * 8) - offset, Green);
+	else fillrect(72, 201 - (note * 8) - 4 - offset, 78, 201 - (_possible[0][pos] * 8) - offset, Orange);
 
 	// Write the Current Octave down in C
 	locate(48,195);
@@ -248,7 +344,7 @@ void Screen::paintScales(){
 void Screen::showPiano(bool show){
 	const uint8_t blackOffset[] = {7, 23, 39, 63, 79, 103, 119, 135, 159, 175};
 	const uint8_t whiteOffset[] = {55, 95, 151};
-	if (show) {
+	if (show && !_piano) {
 		// Draw Piano Roll
 		for (uint8_t i = 0; i < 144; i += 9) {
 			// Vertical Lines
@@ -279,8 +375,11 @@ void Screen::showPiano(bool show){
 		// Draw Selected Scale
 		getPossible();
 		paintScales();
-	} else {
+
+		_piano = true;
+	} else if (!show && _piano) {
 		fillrect(0, 30, 320, 180, Black); // Hide the piano roll
+		_piano = false;
 	}
 }
 
@@ -310,9 +409,9 @@ void Screen::paintGrid() {
 			uint16_t xEnd = 102 + (gridBeat * 9);
 			uint16_t yEnd = 17 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
 			if((beatsPerTone[bptIndex] & beatMask) != 0) { 
-				if(count(possible[0].begin(),possible[0].end(),indNote)){
+				if(count(_possible[0].begin(),_possible[0].end(),indNote)){
 					if(note == indNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
-					else if (indNote == possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
+					else if (indNote == _possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
 					else fillrect(xStart, yStart, xEnd, yEnd, Blue);
 				} 
 				else {
@@ -336,7 +435,7 @@ void Screen::paintGrid() {
 		else if ((n && !e) || (e && !half)) endBeat = 15;
 
 		if (n) firstBeat -= 16;
-		else if (!n && e && half) firstBeat == 0;
+		else if (!n && e && half) firstBeat = 0;
 
 		// If it's the correct channel, and the note does not overflow the current limits
 		if ((i.first.channel == channel) && (i.first.midiNote >= (_curOctave * 12 + 24) && i.first.midiNote < (_curOctave + 2) * 12 + 24)){
@@ -350,9 +449,9 @@ void Screen::paintGrid() {
 				uint16_t yStart = 11 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
 				uint16_t xEnd = 102 + (gridBeat * 9);
 				uint16_t yEnd = 17 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
-				if(count(possible[0].begin(),possible[0].end(),holdNote)){
+				if(count(_possible[0].begin(),_possible[0].end(),holdNote)){
 					if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
-					else if (holdNote == possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
+					else if (holdNote == _possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
 					else fillrect(xStart, yStart, xEnd, yEnd, Blue);
 				} 
 				else {
@@ -362,6 +461,79 @@ void Screen::paintGrid() {
 			}
 		}
     }
+}
+
+void Screen::updateHold() {
+	// Check if it should go below 17-32
+	switch (hold) {
+		case 0:
+			fillrect(0,188,47,192,Black);
+			break;
+		case 1:
+			locate(3,195);
+			puts("1st Value");
+			break;
+		case 2:
+			locate(3,195);
+			puts("2nd Value");
+			break;			
+	}
+}
+
+void Screen::left() {
+	switch (mainState) {
+		case MEMORY:
+		case RENAME:
+			if (_edit == 1){
+				_typePointer --;
+				if (_typePointer < 0) _typePointer = 0;
+			}
+			else if (_edit == 2){
+				if (_curPointer == 0){
+					_letterPointer --;
+					if (_letterPointer < 0)	_letterPointer = 25;
+				}else if (_curPointer == 1){
+					_specialPointer --;
+					if (_specialPointer < 0) _specialPointer = 20;
+				}
+			}
+			break;
+		case SAVELOAD:
+		case PLAY:
+			_selectedFile --;
+			if (_selectedFile < 0) _selectedFile = 11;
+			break;
+		default:
+			break;
+	}
+}
+
+void Screen::right() {
+	switch (mainState) {
+		case MEMORY:
+		case RENAME:
+			if (_edit == 1){
+				_typePointer ++;
+				if (_typePointer > 17 ) _typePointer = 17;
+			}
+			else if (_edit == 2){
+				if (_curPointer == 0){
+					_letterPointer ++;
+					if (_letterPointer > 25) _letterPointer = 0;
+				}else if (_curPointer == 1){
+					_specialPointer ++;
+					if (_specialPointer > 20) _specialPointer = 0;
+				}
+			}
+		break;
+		case SAVELOAD:
+		case PLAY:
+			_selectedFile ++;
+			if (_selectedFile > 11) _selectedFile = 0;
+			break;
+		default:
+			break;
+	}
 }
 
 void Screen::updateScreen() {
@@ -375,8 +547,48 @@ void Screen::updateScreen() {
 			showMenu(true);
 			showPiano(true);
 			paintGrid();
+			if (velocity != _lastVel) {
+				updateMenuText(4);
+				_lastVel = velocity;
+			}
+			if (half != _lastHalf){
+				updateMenuText(5);
+				_lastHalf = half;
+			}
+			if (hold != _lastHold){
+				updateHold();
+				_lastHold = hold;
+			}
+			break;
+		case CHANNEL:
+			updateMenuText(1);
+			break;
+		case TEMPO:
+			updateMenuText(2);
+			break;
+		case SCALE:
+			getPossible();
+			paintScales();
+			paintGrid();
+			updateMenuText(3);
 			break;
 		default:
 			break;
 	}
+}
+
+void Screen::selectLetter() {
+
+}
+
+string Screen::getFilename() {
+	return "";
+}
+
+string Screen::saveFilename() {
+	return "";
+}
+
+void Screen::updateMemoryText() {
+
 }

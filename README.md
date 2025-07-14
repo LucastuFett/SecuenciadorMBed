@@ -1,6 +1,7 @@
 # Secuenciador - MBed CE
 
 Proyecto Final de Graduación - Lucas Gutiérrez - 2025
+
 Facultad de Ciencias Exactas y Tecnología - Universidad Nacional de Tucumán
 
 ## How to set up this project:

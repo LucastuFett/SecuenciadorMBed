@@ -30,9 +30,9 @@ DigitalIn selectSW(p14, PullDown);
 
 DigitalIn toggle32(p28, PullNone);
 
-BufferedSerial midiUART(p12, p13, 31250); // MIDI UART
-WS2812_PIO ledStrip(p5, 8); // WS2812 PIO
-Encoder encoder(p6, p7, PullUp); // Encoder for tempo adjustment
+BufferedSerial midiUART(p12, p13, 31250);
+WS2812_PIO ledStrip(p5, 8);
+Encoder encoder(p6, p7, PullUp); 
 Screen screen(p3,p0,p2,p1,NC,p4,"TFT");
 
 USBMIDI midi;
@@ -96,6 +96,9 @@ int8_t prevMode = 0; // Previous mode for the UI
 int8_t prevChn = 0; // Previous channel for the UI
 int8_t prevTone = 0; // Previous tone for the UI
 int16_t prevTempo[2] = {0,120};
+bool lastToggle = false;
+uint32_t ledData[16];
+uint32_t lastLedData[16];
 
 // Play Mode
 
@@ -107,17 +110,17 @@ bool queue = false;
 
 // Methods
 
-Mutex keysMutex;
+//Mutex keysMutex;
 
 void readKeys() {
     for (int i = 0; i < 5; i++) {
         rows[i] = 1; // Set current row high
         ThisThread::sleep_for(1ms); // Wait for the row to stabilize
-        keysMutex.lock(); // Lock the mutex to prevent concurrent access
+        //keysMutex.lock(); // Lock the mutex to prevent concurrent access
         for (int j = 0; j < 4; j++) {
             keys[i][j] = columns[j].read();
         }
-        keysMutex.unlock(); // Unlock the mutex after writing to keys
+        //keysMutex.unlock(); // Unlock the mutex after writing to keys
         rows[i] = 0; // Set current row low
     }
 }
@@ -134,18 +137,20 @@ void select() {
             break;
         case MEMORY:
         case RENAME:
-            // Select Letter
+            screen.selectLetter();
             break;
         case SAVELOAD:
-            // Get Filename
+            filename = screen.getFilename();
             break;
         case PLAY:
             if (timer.isRunning()) {
-                // Next Filename and Read
+                nextFilename = screen.getFilename();
+                // Read
                 queue = true;
             } else {
-                // Get Filename and Read
-                // Update Structs
+                filename = screen.getFilename();
+                // Read
+                buttons.updateStructures();
             }
             break;
         default:
@@ -165,7 +170,8 @@ void function1() {
             break;
         case PROG:
             if (shift) {
-                // Update Text, Edit = 0
+                screen.updateMemoryText();
+                screen.setEdit(0);
                 mainState = MEMORY;
                 shift = false;
             } else {
@@ -174,11 +180,14 @@ void function1() {
             }
             break;
         case MEMORY:
-            // Save Filename and File
+            filename = screen.saveFilename();
+            // Save File
             mainState = PROG;
             break;
         case SAVELOAD:
-            // Read from File
+            filename = screen.getFilename();
+            // Read
+            buttons.updateStructures();
             mainState = PROG;
             break;
         case RENAME:
@@ -190,7 +199,7 @@ void function1() {
                 beat --;
             } else {
                 timer.allNotesOff();
-                // Update Colors
+                buttons.updateColors();
             }
             timer.playPause(); // Toggle Play/Pause
             break;
@@ -215,7 +224,7 @@ void function2() {
                     beat --;
                 } else {
                     timer.allNotesOff();
-                    // Update Colors
+                    buttons.updateColors();
                 }
                 timer.playPause(); // Toggle Play/Pause
             }
@@ -234,15 +243,18 @@ void function2() {
         case MEMORY:
         case RENAME:
             if (shift) {
-                // Change Pointer
+                if (screen.getCurPointer()) screen.setCurPointer(true);
+                else screen.setCurPointer(false);
             } else {
-                // Change Upper
+                if (screen.getUpper()) screen.setUpper(true);
+                else screen.setUpper(false);
             }
             break;
         case SAVELOAD:
             if (shift) {
                 mainState = RENAME;
-                // Rename Filename
+                renameFilename = screen.getFilename();
+                screen.setEdit(0);
             } else {
                 bank --;
                 if (bank < 1) bank = 8; // Wrap around to last bank
@@ -268,7 +280,7 @@ void function3() {
             } else {
                 timer.stop();
                 timer.allNotesOff();
-                // Update Colors
+                buttons.updateColors();
                 beat = 0;
             }
             break;
@@ -492,76 +504,13 @@ void timeout() {
             memcpy(tempo, nextTempo, sizeof(tempo));
             filename = nextFilename;
             timer.allNotesOff(); // Stop all notes
-            // Update Structures
+            buttons.updateStructures();
             queue = false;
         }
     }
     timer.beatPlay(); // Send MIDI messages for the current beat
-    // Update Colors
+    buttons.updateColors();
 }
-
-/*
-Mutex ledDataMutex;
-
-uint32_t ledData[8] = {
-    0xFF000000, // Channel 1 - Green
-    0xFF000000, // Channel 2 - Green
-    0x00FF0000, // Channel 3 - Red
-    0x00FF0000, // Channel 4 - Red
-    0x0000FF00, // Channel 5 - Blue
-    0x0000FF00, // Channel 6 - Blue
-    0x77777700, // Channel 7 - Off
-    0x77007700  // Channel 8 - Off
-};
-
-uint32_t lastLedData[8] = {
-    0xFF000000, // Channel 1 - Green
-    0xFF000000, // Channel 2 - Green
-    0x00FF0000, // Channel 3 - Red
-    0x00FF0000, // Channel 4 - Red
-    0x0000FF00, // Channel 5 - Blue
-    0x0000FF00, // Channel 6 - Blue
-    0x77777700, // Channel 7 - Off
-    0x77007700  // Channel 8 - Off
-}; // Last state of LEDs
-
-*/
-/*
-void do_enc(void)
-{
-    int evalue=0;
-    while (1)
-    {
-        if (encoder.getRotaryEncoder()){
-            int current=encoder.read();
-            if (current != 0)
-                evalue += current; // Increment or decrement based on encoder direction
-            midi.write(MIDIMessage::ControlChange(0,evalue & 0x7F)); // Send encoder value as CC message
-        }
-        ThisThread::sleep_for(1ms);
-    }
-}
-
-Thread encthread;    // thread for encoder
-*/
-/*
-
-void changeLED(void){
-    while(1) {
-        ledDataMutex.lock();
-        ledData[0] ^= 0x00FF0000;
-        ledData[1] ^= 0x0000FF00;
-        ledData[2] ^= 0xFF000000;
-        ledData[3] ^= 0x0000FF00;
-        ledData[4] ^= 0xFF000000;
-        ledData[5] ^= 0x00FF0000;
-        ledDataMutex.unlock();
-        ThisThread::sleep_for(500ms);
-    }
-}
-
-Thread ledThread;
-*/
 
 int main()
 {
@@ -605,18 +554,29 @@ int main()
             for(int i = 1; i < 5; i++) {
                 for(int j = 0; j < 4; j++) {
                     if (keys[i][j] && !lastKeys[i][j]) { // Key pressed
-                        // Handle key press logic here
+                        buttons.press((i-1) * 4 + j);
+                        screen.updateScreen();
                     }
                 }
             }
             memcpy(lastKeys, keys, sizeof(keys)); // Update lastKeys
         }
-       /*
-        ledDataMutex.lock();
+        if (toggle32 != lastToggle){
+            mode32 = toggle32;
+            lastToggle = toggle32;
+        }
+        if (encoder.getRotaryEncoder()){
+            int current=encoder.read();
+            if (current == 1) right();
+            if (current == -1) left();
+        }
+        /*
+        //ledDataMutex.lock();
         if (memcmp(ledData, lastLedData, sizeof(ledData)) != 0) {
             ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
             memcpy(lastLedData, ledData, sizeof(ledData)); // Update last LED data
         }
-        ledDataMutex.unlock();*/
+        //ledDataMutex.unlock();
+        */
     }
 }

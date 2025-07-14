@@ -4,13 +4,13 @@
     "*": {
       "platform.stdio-baud-rate": 115200,
       "platform.stdio-buffered-serial": 1,
-      //"target.application-profile": "full",
       "target.console-usb": false,
       "target.console-uart": true,
-
-      //"target.c_lib": "small",
-      //"target.clock_source": "USE_PLL_HSI | USE_PLL_HSE_XTAL",
-      //"target.clock_source_usb": "1",
+      "sd.SPI_MOSI": "p11",
+      "sd.SPI_MISO": "p8",
+      "sd.SPI_CLK": "p10",
+      "sd.SPI_CS": "p9",
+      "target.components_add": ["SD"],
       //"target.device_has_add": ["USBDEVICE"],
     },
   },

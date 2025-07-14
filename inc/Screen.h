@@ -37,16 +37,22 @@ const char special[] = {'0','1','2','3','4','5','6','7','8','9','\'','.',',','/'
 const string tones[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 class Screen : public SPI_TFT_ILI9341 {
-    uint8_t _typePointer;
-    uint8_t _letterPointer;
-    uint8_t _specialPointer;
-    uint8_t _edit;
+    int8_t _typePointer;
+    int8_t _letterPointer;
+    int8_t _specialPointer;
+    int8_t _edit;
     bool _curPointer;
     bool _upper;
-    uint8_t _selectedFile;
-    uint8_t _currentFile;
-    uint8_t _curOctave;
-    vector <uint16_t> possible[2];
+    int8_t _selectedFile;
+    int8_t _currentFile;
+    int8_t _curOctave;
+    vector <uint16_t> _possible[2];
+
+    bool _menu = false;
+    bool _piano = false;
+    bool _lastHalf = false;
+    uint8_t _lastHold = 0;
+    int8_t _lastVel = 127;
 
     // Updates Screen Text, Leaving Graphics
     void updateText();
@@ -54,7 +60,14 @@ class Screen : public SPI_TFT_ILI9341 {
     // Shows or Hides Menus
     void showMenu(bool show);
 
-    // Updates Menu Text
+    /* Updates Menu Text
+        0 = All Menus
+        1 = Channel
+        2 = Tempo
+        3 = Scale
+        4 = Velocity
+        5 = Half
+    */
     void updateMenuText(uint8_t menu);
 
     // Shows or Hides Piano Roll
@@ -68,6 +81,9 @@ class Screen : public SPI_TFT_ILI9341 {
 
     // Paint Grid
     void paintGrid();
+
+    // Update Hold
+    void updateHold();
 public:
     // Constructor
     Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char* name ="TFT");
@@ -98,4 +114,19 @@ public:
 
     // Get filename from selected file
     string getFilename();
+
+    // Set Edit Variable
+    void setEdit(int8_t edit);
+
+    // Get Current Pointer
+    bool getCurPointer();
+
+    // Set Current Pointer
+    void setCurPointer(bool curPointer);
+
+    // Get Upper
+    bool getUpper();
+
+    // Set Upper
+    void setUpper(bool upper);
 };
