@@ -47,6 +47,7 @@ class Screen : public SPI_TFT_ILI9341 {
     int8_t _currentFile;
     int8_t _curOctave;
     vector <uint16_t> _possible[2];
+    char _typing[18];
 
     bool _menu = false;
     bool _piano = false;
@@ -129,4 +130,7 @@ public:
 
     // Set Upper
     void setUpper(bool upper);
+
+    // Update Typing Text at Pointer
+    void setTyping(char type);
 };

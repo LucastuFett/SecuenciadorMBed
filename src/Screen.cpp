@@ -16,6 +16,8 @@ extern int8_t velocity;
 extern uint32_t beatsPerTone[1536]; // Beats per tone structure
 extern map<holdKey,uint8_t,CompareHoldKey> holded; // Holds the start and end of held notes
 extern uint8_t hold; // Hold state: 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
+extern string filename;
+extern string renameFilename;
 
 Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char *name)
     : SPI_TFT_ILI9341(mosi, miso, sclk, cs, reset, dc, name) {
@@ -29,6 +31,8 @@ Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName res
 		_currentFile = 0;
 		_curOctave = 2;
 		
+		for (uint8_t i = 0; i < 18; i++) _typing[i] = ' ';
+
 		set_orientation(1);
 		background(Black);    // set background to Black
 		foreground(White);    // set chars to white
@@ -100,8 +104,12 @@ void Screen::setCurPointer(bool curPointer){
 	_curPointer = curPointer;
 }
 
-void Screen::setCurPointer(bool upper){
+void Screen::setUpper(bool upper){
 	_upper = upper;
+}
+
+void Screen::setTyping(char type){
+	_typing[_typePointer] = type;
 }
 
 void Screen::updateText(){
@@ -578,7 +586,37 @@ void Screen::updateScreen() {
 }
 
 void Screen::selectLetter() {
-
+	if (_edit == 1){
+		_edit = 2;
+		// Draw the pointed letter with white background and black foreground typing[typePointer].add_theme_stylebox_override("normal",currentLabel);
+		const char* findLowerPtr = std::find(letters, letters + 26, _typing[_typePointer]);
+		int findLower = (findLowerPtr != letters + 26) ? (findLowerPtr - letters) : -1;
+		const char* findUpperPtr = std::find(shLetters, shLetters + 26, _typing[_typePointer]);
+		int findUpper = (findUpperPtr != shLetters + 26) ? (findUpperPtr - shLetters) : -1;
+		const char* findSpecialPtr = std::find(special, special + 21, _typing[_typePointer]);
+		int findSpecial = (findSpecialPtr != special + 26) ? (findSpecialPtr - special) : -1;
+		if (findLower != -1) {
+			_letterPointer = findLower;
+			_curPointer = 0;
+			_upper = 0;
+		}
+		if (findUpper != -1) {
+			_letterPointer = findUpper;
+			_curPointer = 0;
+			_upper = 1;
+		}
+		if (findSpecial != -1) {
+			_specialPointer = findSpecial;
+			_curPointer = 1;
+		}
+	}else if (_edit == 2){
+		_edit = 1;
+		// Draw the pointed letter with grey background and white foreground typing[typePointer].add_theme_stylebox_override("normal",currentLabel);
+		_letterPointer = 0;
+		_specialPointer = 0;
+		_curPointer = 0;
+		_upper = 0;
+	}
 }
 
 string Screen::getFilename() {
@@ -586,9 +624,38 @@ string Screen::getFilename() {
 }
 
 string Screen::saveFilename() {
-	return "";
+	string name = filename;
+	size_t padding = 18 - filename.length();
+	name.append(padding,' ');
+	for (uint8_t i = 0; i < 18; i++) name[i] = _typing[i];
+	_edit = 0;
+	_letterPointer = 0;
+	_specialPointer = 0;
+	_curPointer = 0;
+	_upper = 0;
+	return name;
 }
 
 void Screen::updateMemoryText() {
+	string name = "";
+	if (mainState == MEMORY) name = filename;
+	else if (mainState == RENAME) name = renameFilename;
+	if (name != "" && _edit == 0){
+		for (uint8_t i = 0; i < name.length(); i++)	_typing[i] = name[i];
+		// Draw every Letter
+		// Draw the first letter as selected typing[0].add_theme_stylebox_override("normal",editLabel)
+		_edit = 1;
+	}else if (_edit == 1){
+		// Draw every Letter
+		// Draw the pointed at letter as selected typing[typePointer].add_theme_stylebox_override("normal",editLabel)
+	}else if (_edit == 2){
+		if (_curPointer == 0){
+			if (_upper == 0) _typing[_typePointer] = letters[_letterPointer];
+			else _typing[_typePointer] = shLetters[_letterPointer];
+		}else _typing[_typePointer] = special[_specialPointer];
+	}
+}
+
+void Screen::updateBanks() {
 
 }

@@ -297,14 +297,15 @@ void function3() {
             break;
         case MEMORY:
         case RENAME:
-            // Set Text to ""
+            screen.setTyping(' ');
             if (!shift) {
-                // Left
+                screen.left();
             }
             break;
         case SAVELOAD:
             if (shift) {
                 // Delete
+                screen.updateBanks();
             } else {
                 bank ++;
                 if (bank > 8) bank = 1; // Wrap around to first bank
@@ -351,7 +352,7 @@ void function4() {
             }
             break;
         case MEMORY:
-            // Save Filename
+            filename = screen.saveFilename();
             mainState = SAVELOAD;
             break;
         case SAVELOAD:
@@ -363,7 +364,7 @@ void function4() {
         case PLAY:
             timer.stop();
             timer.allNotesOff();
-            // Update Colors
+            buttons.updateColors();
             beat = 0;
             break;
         default:
@@ -440,7 +441,7 @@ void left() {
         default:
             break;
     }
-    // Screen Left
+    screen.left();
     changeState();
 }
 
@@ -477,13 +478,13 @@ void right() {
         default:
             break;
     }
-    // Screen Right
+    screen.right();
     changeState();
 }
 
 void changeState() {
     screen.updateScreen();
-    // Update Buttons Colors
+    buttons.updateColors();
     tempoChange();
 }
 
