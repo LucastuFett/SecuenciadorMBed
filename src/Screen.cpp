@@ -30,7 +30,8 @@ Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName res
 		_selectedFile = 0;
 		_currentFile = 0;
 		_curOctave = 2;
-		
+		_lastState = MAIN;
+
 		for (uint8_t i = 0; i < 18; i++) _typing[i] = ' ';
 
 		set_orientation(1);
@@ -38,7 +39,7 @@ Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName res
 		foreground(White);    // set chars to white
 	}
 
-void Screen::start() {
+void Screen::init() {
 	cls();
 	// Set the font and display the title
 	set_font((unsigned char*) Arial24x23);
@@ -112,10 +113,13 @@ void Screen::setTyping(char type){
 	_typing[_typePointer] = type;
 }
 
-void Screen::updateText(){
+void Screen::coverTitle() {
 	// Cover the previous title
 	fillrect(0,0,320,35, Black);
 	fillrect(240,0,320,70, Black);
+}
+
+void Screen::updateText(){
 	// Display the title
 	set_font((unsigned char*) Arial24x23);
 	switch(mainState) {
@@ -155,7 +159,7 @@ void Screen::updateText(){
 			break;
 
 		default:
-			locate(65,5);
+			locate(170 - (titles[mainState].length() >> 1) * 24,5);
 			puts(titles[mainState].c_str());
 			break;
 	}
@@ -213,12 +217,11 @@ void Screen::showMenu(bool show) {
 		circle(280,120,16, White);
 
 		updateMenuText(0); // Update the menu text for all menus
-		_menu = true;
 	} else if (!show && _menu) {
 		fillrect(0,30,70,181, Black); // Hide the menu
 		fillrect(250,80,300,200, Black); // Hide the velocity circle and text
-		_menu = false;
 	}
+	_menu = show;
 }
 
 void Screen::updateMenuText(uint8_t menu) {
@@ -384,11 +387,10 @@ void Screen::showPiano(bool show){
 		getPossible();
 		paintScales();
 
-		_piano = true;
 	} else if (!show && _piano) {
-		fillrect(0, 30, 320, 180, Black); // Hide the piano roll
-		_piano = false;
+		fillrect(48, 10, 238, 203, Black); // Hide the piano roll
 	}
+	_piano = show;
 }
 
 void Screen::paintGrid() {
@@ -544,14 +546,37 @@ void Screen::right() {
 	}
 }
 
+void Screen::showTyping(bool show){
+	
+	if (show && !_typeBox) {
+		rect(5,50,314,70,Cyan);
+		fillrect(6,51,313,69,Black);
+	} else if (!show && _typeBox) {
+		fillrect(5,50,314,70, Black); // Hide Typing Box
+	}
+	_typeBox = show;
+}
+
+void Screen::showBanks(bool show){
+	
+	if (show && !_memBanks) {
+		//rect(5,50,314,70,Cyan);
+		//fillrect(6,51,313,69,Black);
+	} else if (!show && _memBanks) {
+		//fillrect(5,50,314,70, Black); // Hide Banks Box
+	}
+	_memBanks = show;
+}
+
 void Screen::updateScreen() {
-	updateText();
+	if (_lastState != mainState) coverTitle();
 	switch (mainState) {
 		case MAIN:
 			showMenu(false);
 			showPiano(false);
 			break;
 		case PROG:
+			showTyping(false);
 			showMenu(true);
 			showPiano(true);
 			paintGrid();
@@ -580,21 +605,30 @@ void Screen::updateScreen() {
 			paintGrid();
 			updateMenuText(3);
 			break;
+		case MEMORY:
+			showMenu(false);
+			showPiano(false);
+			showBanks(false);
+			showTyping(true);
+			updateMemoryText();
+			break;
 		default:
 			break;
 	}
+	if (_lastState != mainState) updateText();
+	_lastState = mainState;
 }
 
 void Screen::selectLetter() {
 	if (_edit == 1){
 		_edit = 2;
-		// Draw the pointed letter with white background and black foreground typing[typePointer].add_theme_stylebox_override("normal",currentLabel);
+		// May work with just updateMemoryText Draw the pointed letter with white background and black foreground typing[typePointer].add_theme_stylebox_override("normal",currentLabel);
 		const char* findLowerPtr = std::find(letters, letters + 26, _typing[_typePointer]);
 		int findLower = (findLowerPtr != letters + 26) ? (findLowerPtr - letters) : -1;
 		const char* findUpperPtr = std::find(shLetters, shLetters + 26, _typing[_typePointer]);
 		int findUpper = (findUpperPtr != shLetters + 26) ? (findUpperPtr - shLetters) : -1;
 		const char* findSpecialPtr = std::find(special, special + 21, _typing[_typePointer]);
-		int findSpecial = (findSpecialPtr != special + 26) ? (findSpecialPtr - special) : -1;
+		int findSpecial = (findSpecialPtr != special + 21) ? (findSpecialPtr - special) : -1;
 		if (findLower != -1) {
 			_letterPointer = findLower;
 			_curPointer = 0;
@@ -611,12 +645,13 @@ void Screen::selectLetter() {
 		}
 	}else if (_edit == 2){
 		_edit = 1;
-		// Draw the pointed letter with grey background and white foreground typing[typePointer].add_theme_stylebox_override("normal",currentLabel);
+		// May work with just updateMemoryText Draw the pointed letter with grey background and white foreground typing[typePointer].add_theme_stylebox_override("normal",currentLabel);
 		_letterPointer = 0;
 		_specialPointer = 0;
 		_curPointer = 0;
 		_upper = 0;
 	}
+
 }
 
 string Screen::getFilename() {
@@ -638,22 +673,54 @@ string Screen::saveFilename() {
 
 void Screen::updateMemoryText() {
 	string name = "";
+	set_font((unsigned char*) Arial16x16);
 	if (mainState == MEMORY) name = filename;
 	else if (mainState == RENAME) name = renameFilename;
 	if (name != "" && _edit == 0){
 		for (uint8_t i = 0; i < name.length(); i++)	_typing[i] = name[i];
-		// Draw every Letter
-		// Draw the first letter as selected typing[0].add_theme_stylebox_override("normal",editLabel)
+		// Draw first letter as selected (grey background, white foreground)
+		background(DarkGrey);
+		fillrect(7,52,23,68,DarkGrey);
+		locate(8,52);
+		_putc(_typing[0]);
+		// Draw every other letter
+		background(Black);
+		for (uint8_t i = 1; i < 18; i ++){
+			locate(8 + i*17,52);
+			_putc(_typing[i]);
+		}
 		_edit = 1;
 	}else if (_edit == 1){
-		// Draw every Letter
-		// Draw the pointed at letter as selected typing[typePointer].add_theme_stylebox_override("normal",editLabel)
+		// Cover left and right letter background
+		if(_typePointer > 0) fillrect(7 + (_typePointer - 1)*17 ,52, 23 + (_typePointer - 1)*17,68,Black);
+		if(_typePointer < 17) fillrect(7 + (_typePointer + 1)*17 ,52, 23 + (_typePointer + 1)*17,68,Black);
+		// Draw every letter
+		background(Black);
+		for (uint8_t i = 0; i < 18; i ++){
+			locate(8 + i*17,52);
+			_putc(_typing[i]);
+		}
+		// Draw the pointed at letter as selected
+		background(DarkGrey);
+		fillrect(7 + _typePointer*17 ,52, 23 + _typePointer*17,68,DarkGrey);
+		locate(8 + _typePointer*17,52);
+		_putc(_typing[_typePointer]);
+		background(Black);
 	}else if (_edit == 2){
 		if (_curPointer == 0){
 			if (_upper == 0) _typing[_typePointer] = letters[_letterPointer];
 			else _typing[_typePointer] = shLetters[_letterPointer];
 		}else _typing[_typePointer] = special[_specialPointer];
+		// Draw the pointed at letter as editing
+		background(White);
+		foreground(Black);
+		fillrect(7 + _typePointer*17 ,52, 23 + _typePointer*17,68,White);
+		locate(8 + _typePointer*17,52);
+		_putc(_typing[_typePointer]);
+		background(Black);
+		foreground(White);
 	}
+	set_font((unsigned char*) Arial12x12);
 }
 
 void Screen::updateBanks() {

@@ -48,12 +48,18 @@ class Screen : public SPI_TFT_ILI9341 {
     int8_t _curOctave;
     vector <uint16_t> _possible[2];
     char _typing[18];
+    enum state _lastState;
 
     bool _menu = false;
     bool _piano = false;
+    bool _typeBox = false;
+    bool _memBanks = false;
     bool _lastHalf = false;
     uint8_t _lastHold = 0;
     int8_t _lastVel = 127;
+
+    // Cover Title
+    void coverTitle();
 
     // Updates Screen Text, Leaving Graphics
     void updateText();
@@ -74,6 +80,12 @@ class Screen : public SPI_TFT_ILI9341 {
     // Shows or Hides Piano Roll
     void showPiano(bool show);
 
+    // Shows or Hides Typing Box
+    void showTyping(bool show);
+
+    // Shows or Hides Memory Banks
+    void showBanks(bool show);
+
     // Get Possible Notes for the current scale
     void getPossible();
 
@@ -90,7 +102,7 @@ public:
     Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char* name ="TFT");
 
     // Set the Default Text and Graphics
-    void start();
+    void init();
 
     // Left Action on Screen
     void left();

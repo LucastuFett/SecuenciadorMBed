@@ -6,7 +6,7 @@ extern uint8_t offMessages[320][3]; // Off messages for each beat
 extern uint32_t control; // Control mask for beats
 extern uint8_t channelEnabled[16]; // Channel enable flags
 extern uint8_t channels[16]; // Active channels
-extern USBMIDI midi; // MIDI interface instance
+//extern USBMIDI midi; // MIDI interface instance
 extern int8_t beat; // Current beat index
 
 MIDITimer::MIDITimer(Callback <void()> timeoutCallback) : _timeoutCallback(timeoutCallback) {
@@ -67,7 +67,7 @@ void MIDITimer::beatPlay() {
     for (int i = 0; i < 10; i++) {
         index = i * 32 + beat;
         if (offMessages[index][0] != 0) {
-            midi.write(MIDIMessage::NoteOn(offMessages[index][1], offMessages[index][2], offMessages[index][0] & 0xF));
+            //midi.write(MIDIMessage::NoteOn(offMessages[index][1], offMessages[index][2], offMessages[index][0] & 0xF));
         }
     }
     for (int i = 0; i < 10; i++) {
@@ -77,7 +77,7 @@ void MIDITimer::beatPlay() {
             if (channelEnabled[midiMessages[index][0] & 0xF] == 0) {
                 continue; // Skip if channel is disabled
             }*/
-            midi.write(MIDIMessage::NoteOn(midiMessages[index][1], midiMessages[index][2], midiMessages[index][0] & 0xF));
+            //midi.write(MIDIMessage::NoteOn(midiMessages[index][1], midiMessages[index][2], midiMessages[index][0] & 0xF));
         }
     }
 }
@@ -85,7 +85,7 @@ void MIDITimer::beatPlay() {
 void MIDITimer::allNotesOff() {
     for (int i = 0; i < 16; i++) {
         if (channels[i] != 0) {
-            midi.write(MIDIMessage::AllNotesOff(i));
+            //midi.write(MIDIMessage::AllNotesOff(i));
         }
     }
 }
