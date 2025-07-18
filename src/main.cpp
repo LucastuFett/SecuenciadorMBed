@@ -1,534 +1,625 @@
-/*
- * Copyright (c) 2006-2020 Arm Limited and affiliates.
- * SPDX-License-Identifier: Apache-2.0
- */
 #include "mbed.h"
-#include "USBMSD.h"
-#include "FATFileSystem.h"
-#include "SDBlockDevice.h"
-
-#define CMD0        0
-#define CMD0_ARG    0x00000000
-#define CMD0_CRC    0x94
-
-#define CMD8        8
-#define CMD8_ARG    0x0000001AA
-#define CMD8_CRC    0x86 //(1000011 << 1)
-
-#define CMD58       58
-#define CMD58_ARG   0x00000000
-#define CMD58_CRC   0x00
-
-#define CMD55       55
-#define CMD55_ARG   0x00000000
-#define CMD55_CRC   0x00
-
-#define ACMD41      41
-#define ACMD41_ARG  0x40000000
-#define ACMD41_CRC  0x00
-
-#define CMD17                   17
-#define CMD17_CRC               0x00
-#define SD_MAX_READ_ATTEMPTS    1250        // (100 ms * 100 KHz) / 8 bits
-
-#define CMD_VER(X)          ((X >> 4) & 0xF0)
-#define VOL_ACC(X)          (X & 0x1F)
-
-#define VOLTAGE_ACC_27_33   0b00000001
-#define VOLTAGE_ACC_LOW     0b00000010
-#define VOLTAGE_ACC_RES1    0b00000100
-#define VOLTAGE_ACC_RES2    0b00001000
-
-#define PARAM_ERROR(X)      X & 0b01000000
-#define ADDR_ERROR(X)       X & 0b00100000
-#define ERASE_SEQ_ERROR(X)  X & 0b00010000
-#define CRC_ERROR(X)        X & 0b00001000
-#define ILLEGAL_CMD(X)      X & 0b00000100
-#define ERASE_RESET(X)      X & 0b00000010
-#define IN_IDLE(X)          X & 0b00000001
-
-#define POWER_UP_STATUS(X)  X & 0x40
-#define CCS_VAL(X)          X & 0x40
-#define VDD_2728(X)         X & 0b10000000
-#define VDD_2829(X)         X & 0b00000001
-#define VDD_2930(X)         X & 0b00000010
-#define VDD_3031(X)         X & 0b00000100
-#define VDD_3132(X)         X & 0b00001000
-#define VDD_3233(X)         X & 0b00010000
-#define VDD_3334(X)         X & 0b00100000
-#define VDD_3435(X)         X & 0b01000000
-#define VDD_3536(X)         X & 0b10000000
-
-#define SD_SUCCESS  0
-#define SD_ERROR    1
-#define SD_READY    0
-#define SD_R1_NO_ERROR(X)   X < 0x02
-
-FATFileSystem heap_fs("heap_fs");
-//SDBlockDevice bd(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS);
-
-class SDSPI : public SPI {
-    public:
-        SDSPI(PinName mosi, PinName miso, PinName sclk, PinName cs) : SPI(mosi, miso, sclk, cs){
-
-        }
-
-        int write_nocs(int value) {
-            int ret = spi_master_write(&_peripheral->spi, value);
-            printf("SPI TX: 0x%02X RX: 0x%02X\n", value, ret);
-            return ret;
-        }
+#include "USBMIDI.h"
+#include "MIDITimer.h"
+#include "MIDIFile.h"
+#include "Buttons.h"
+#include "WS2812.h"
+#include "Encoder.h"
+#include "Screen.h"
+#include "definitions.h"
 
 
+// Hardware
+
+DigitalIn columns[4] = {
+    DigitalIn(p21, PullDown),
+    DigitalIn(p22, PullDown),
+    DigitalIn(p26, PullDown),
+    DigitalIn(p27, PullDown)
 };
 
+DigitalOut rows[5] ={
+    DigitalOut(p16),
+    DigitalOut(p17),
+    DigitalOut(p18),
+    DigitalOut(p19),
+    DigitalOut(p20)
+};
 
-SPI _spi(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, NC);
-DigitalOut cs(MBED_CONF_SD_SPI_CS);
-uint8_t i = 0;
-uint8_t res0;
-uint8_t res55;
-uint8_t res41;
+DigitalIn exitSW(p15, PullDown);
+DigitalIn selectSW(p14, PullDown);
+
+DigitalIn toggle32(p28, PullNone);
+
+BufferedSerial midiUART(p12, p13, 31250);
+WS2812_PIO ledStrip(p5, 8);
+Encoder encoder(p6, p7, PullUp); 
+Screen screen(p3,p0,p2,p1,NC,p4,"TFT");
+
+//USBMIDI midi;
+
+bool keys[5][4] = {{0}}; // 5 rows, 4 columns
+bool lastKeys[5][4] = {{0}}; // Last state of keys
+
+// Function Declarations
+void readKeys();
+void select();
+void function1();
+void function2();
+void function3();
+void function4();
+void exit();
+void left();
+void right();
+void changeState();
+void tempoChange();
+void timeout();
+
+// Composition
+
+MIDITimer timer(callback(timeout)); 
+Buttons buttons;
+MIDIFile midiFile;
+
+// Programming Mode
 
 
-void SD_command(uint8_t cmd, uint32_t arg, uint8_t crc)
-{
-    // transmit command to sd card
-    _spi.write(cmd|0x40);
+enum state mainState = MAIN;
+//uint8_t midiMessages[320][3] = {{0}};
+//uint8_t offMessages[320][3] = {{0}}; 
+uint8_t midiMessages[320][3] = {{144, 36, 127}, {144, 49, 127}, {144, 38, 127}, {144, 36, 127}, {144, 49, 127}, {144, 49, 127}, {144, 38, 127}, {144, 49, 127}, {144, 36, 127}, {144, 49, 127}, {144, 38, 127}, {144, 36, 127}, {144, 49, 127}, {144, 36, 127}, {144, 38, 127}, {144, 49, 127}, {144, 36, 127}, {144, 49, 127}, {144, 38, 127}, {144, 36, 127}, {144, 49, 127}, {144, 49, 127}, {144, 38, 127}, {144, 49, 127}, {144, 36, 127}, {144, 49, 127}, {144, 38, 127}, {144, 36, 127}, {144, 49, 127}, {144, 36, 127}, {144, 38, 127}, {144, 49, 127}, {144, 49, 127}, {145, 53, 100}, {144, 49, 127}, {144, 49, 127}, {145, 53, 100}, {145, 53, 100}, {144, 49, 127}, {145, 53, 100}, {144, 49, 127}, {145, 50, 100}, {144, 49, 127}, {144, 49, 127}, {145, 55, 100}, {144, 49, 127}, {144, 49, 127}, {145, 55, 100}, {144, 49, 127}, {145, 57, 100}, {144, 49, 127}, {144, 49, 127}, {145, 55, 103}, {145, 55, 103}, {144, 49, 127}, {145, 55, 103}, {144, 49, 127}, {145, 57, 100}, {144, 49, 127}, {144, 49, 127}, {145, 57, 103}, {144, 49, 127}, {144, 49, 127}, {145, 52, 103}, {145, 53, 100}, {0, 0, 0}, {145, 53, 100}, {145, 53, 100}, {0, 0, 0}, {148, 76, 110}, {145, 53, 100}, {0, 0, 0}, {145, 50, 100}, {0, 0, 0}, {145, 55, 100}, {145, 55, 100}, {0, 0, 0}, {145, 55, 100}, {145, 55, 100}, {0, 0, 0}, {145, 57, 100}, {0, 0, 0}, {145, 57, 100}, {145, 57, 100}, {146, 43, 125}, {148, 72, 110}, {145, 55, 103}, {146, 45, 125}, {145, 57, 100}, {0, 0, 0}, {145, 57, 100}, {145, 57, 100}, {148, 72, 110}, {145, 52, 103}, {145, 52, 103}, {148, 69, 110}, {146, 41, 127}, {0, 0, 0}, {148, 76, 110}, {148, 74, 110}, {0, 0, 0}, {0, 0, 0}, {148, 74, 110}, {0, 0, 0}, {146, 38, 127}, {0, 0, 0}, {146, 43, 127}, {148, 74, 110}, {0, 0, 0}, {148, 72, 110}, {148, 76, 110}, {0, 0, 0}, {146, 45, 127}, {0, 0, 0}, {148, 69, 110}, {148, 69, 110}, {147, 59, 127}, {0, 0, 0}, {148, 74, 110}, {0, 0, 0}, {147, 60, 127}, {0, 0, 0}, {148, 74, 110}, {148, 74, 110}, {0, 0, 0}, {146, 40, 125}, {0, 0, 0}, {0, 0, 0}, {147, 57, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 127}, {0, 0, 0}, {147, 59, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 60, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 55, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 55, 127}, {0, 0, 0}, {0, 0, 0}, {147, 53, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 53, 127}, {0, 0, 0}, {147, 55, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 50, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 52, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 52, 127}, {0, 0, 0}, {0, 0, 0}, {147, 48, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 48, 127}, {0, 0, 0}, {147, 50, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 52, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 43, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 45, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 48, 127}, {0, 0, 0}, {0, 0, 0}, {147, 41, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 41, 127}, {0, 0, 0}, {147, 43, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 45, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 72, 110}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 76, 110}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 40, 127}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 72, 110}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 71, 110}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+uint8_t offMessages[320][3] = {{144, 49, 0}, {144, 36, 0}, {144, 49, 0}, {144, 38, 0}, {144, 36, 0}, {144, 49, 0}, {144, 49, 0}, {144, 38, 0}, {144, 49, 0}, {144, 36, 0}, {144, 49, 0}, {144, 38, 0}, {144, 36, 0}, {144, 49, 0}, {144, 36, 0}, {144, 38, 0}, {144, 49, 0}, {144, 36, 0}, {144, 49, 0}, {144, 38, 0}, {144, 36, 0}, {144, 49, 0}, {144, 49, 0}, {144, 38, 0}, {144, 49, 0}, {144, 36, 0}, {144, 49, 0}, {144, 38, 0}, {144, 36, 0}, {144, 49, 0}, {144, 36, 0}, {144, 38, 0}, {145, 52, 0}, {144, 49, 0}, {145, 53, 0}, {144, 49, 0}, {144, 49, 0}, {145, 53, 0}, {145, 53, 0}, {144, 49, 0}, {145, 53, 0}, {144, 49, 0}, {145, 50, 0}, {144, 49, 0}, {144, 49, 0}, {145, 55, 0}, {144, 49, 0}, {144, 49, 0}, {145, 55, 0}, {144, 49, 0}, {145, 57, 0}, {144, 49, 0}, {144, 49, 0}, {145, 55, 0}, {145, 55, 0}, {144, 49, 0}, {145, 55, 0}, {144, 49, 0}, {145, 57, 0}, {144, 49, 0}, {144, 49, 0}, {145, 57, 0}, {144, 49, 0}, {144, 49, 0}, {146, 40, 0}, {145, 53, 0}, {0, 0, 0}, {145, 53, 0}, {145, 53, 0}, {148, 74, 0}, {148, 76, 0}, {145, 53, 0}, {146, 41, 0}, {145, 50, 0}, {146, 38, 0}, {145, 55, 0}, {145, 55, 0}, {148, 74, 0}, {145, 55, 0}, {145, 55, 0}, {146, 43, 0}, {145, 57, 0}, {0, 0, 0}, {145, 57, 0}, {145, 57, 0}, {148, 72, 0}, {148, 72, 0}, {145, 55, 0}, {147, 59, 0}, {145, 57, 0}, {148, 76, 0}, {145, 57, 0}, {145, 57, 0}, {146, 45, 0}, {145, 52, 0}, {145, 52, 0}, {147, 55, 0}, {0, 0, 0}, {0, 0, 0}, {148, 76, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 0}, {147, 57, 0}, {0, 0, 0}, {148, 72, 0}, {0, 0, 0}, {0, 0, 0}, {148, 72, 0}, {0, 0, 0}, {147, 59, 0}, {0, 0, 0}, {0, 0, 0}, {148, 69, 0}, {146, 45, 0}, {0, 0, 0}, {0, 0, 0}, {146, 43, 0}, {147, 55, 0}, {0, 0, 0}, {0, 0, 0}, {148, 74, 0}, {148, 74, 0}, {147, 60, 0}, {148, 71, 0}, {0, 0, 0}, {147, 52, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 53, 0}, {147, 53, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 55, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 60, 0}, {0, 0, 0}, {0, 0, 0}, {148, 74, 0}, {147, 50, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 0}, {0, 0, 0}, {0, 0, 0}, {147, 48, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 48, 0}, {147, 48, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 50, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 43, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 52, 0}, {0, 0, 0}, {0, 0, 0}, {147, 40, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 41, 0}, {147, 41, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 43, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 52, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 45, 0}, {0, 0, 0}, {0, 0, 0}, {148, 69, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 74, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 76, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 45, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 72, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 69, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+uint32_t beatsPerTone[1536] = {0};
+int8_t beat = 0;
+int8_t tone = 0;
+int8_t mode = 0;
+int8_t note = 0;
+int8_t octave = 3;
+int8_t channel = 0;
+int8_t velocity = 127;
+//uint8_t channels[16] = {0};
+uint8_t channels[16] = {1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0}; // 1 = Enabled, 0 = Disabled
+bool mode32 = false;
+bool half = false;
+//uint32_t control = 0;
+uint32_t control = 0xFFFFFFFF;
+int16_t tempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
+string filename = "WegtTestTestTestTw";
+string renameFilename = "";
+uint8_t bank = 1;
+uint8_t hold = 0; // 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
+map<holdKey,uint8_t, CompareHoldKey> holded;
 
-    // transmit argument
-    _spi.write((uint8_t)(arg >> 24));
-    _spi.write((uint8_t)(arg >> 16));
-    _spi.write((uint8_t)(arg >> 8));
-    _spi.write((uint8_t)(arg));
+// UI Variables
 
-    // transmit crc
-    _spi.write(crc|0x01);
-}
+bool shift = false;
+int8_t prevNote = 0; // Previous note for the UI
+int8_t prevMode = 0; // Previous mode for the UI
+int8_t prevChn = 0; // Previous channel for the UI
+int8_t prevTone = 0; // Previous tone for the UI
+int16_t prevTempo[2] = {0,120};
+bool lastToggle = false;
+uint32_t ledData[16];
+uint32_t lastLedData[16];
 
-uint8_t SD_readRes1()
-{
-    uint8_t res1;
+// Play Mode
 
-    // keep polling until actual data received
-    while((res1 = _spi.write(0xFF)) == 0xFF)
-    {
-        i++;
+uint8_t nextMessages[320][3] = {{0}};
+uint8_t nextOffMessages[320][3] = {{0}}; 
+uint16_t nextTempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
+string nextFilename = "";
+bool queue = false;
 
-        // if no data received for 8 bytes, break
-        if(i > 16) break;
-    }
+// Methods
 
-    return res1;
-}
-    
-void SD_readRes3_7(uint8_t *res)
-{
-    // read response 1 in R7
-    res[0] = SD_readRes1();
+//Mutex keysMutex;
 
-    // if error reading R1, return
-    if(res[0] > 1) return;
-
-    // read remaining bytes
-    res[1] = _spi.write(0xFF);
-    res[2] = _spi.write(0xFF);
-    res[3] = _spi.write(0xFF);
-    res[4] = _spi.write(0xFF);
-}
-
-void SD_sendIfCond(uint8_t *res)
-{
-    // assert chip select
-    _spi.write(0xFF);
-    cs = 0;
-    _spi.write(0xFF);
-
-    // send CMD8
-    SD_command(CMD8, CMD8_ARG, CMD8_CRC);
-
-    // read response
-    SD_readRes3_7(res);
-
-    // deassert chip select
-    _spi.write(0xFF);
-    cs = 1;
-    _spi.write(0xFF);
-}
-
-void SD_printR1(uint8_t res)
-{
-    if(res & 0b10000000)
-        { printf("\tError: MSB = 1\r\n"); return; }
-    if(res == 0)
-        { printf("\tCard Ready\r\n"); return; }
-    if(PARAM_ERROR(res))
-        printf("\tParameter Error\r\n");
-    if(ADDR_ERROR(res))
-        printf("\tAddress Error\r\n");
-    if(ERASE_SEQ_ERROR(res))
-        printf("\tErase Sequence Error\r\n");
-    if(CRC_ERROR(res))
-        printf("\tCRC Error\r\n");
-    if(ILLEGAL_CMD(res))
-        printf("\tIllegal Command\r\n");
-    if(ERASE_RESET(res))
-        printf("\tErase Reset Error\r\n");
-    if(IN_IDLE(res))
-        printf("\tIn Idle State\r\n");
-}
-
-void SD_printR7(uint8_t *res)
-{
-    SD_printR1(res[0]);
-
-    if(res[0] > 1) return;
-
-    printf("\tCommand Version: ");
-    printf("0x%02X",CMD_VER(res[1]));
-    printf("\r\n");
-
-    printf("\tVoltage Accepted: ");
-    if(VOL_ACC(res[3]) == VOLTAGE_ACC_27_33)
-        printf("2.7-3.6V\r\n");
-    else if(VOL_ACC(res[3]) == VOLTAGE_ACC_LOW)
-        printf("LOW VOLTAGE\r\n");
-    else if(VOL_ACC(res[3]) == VOLTAGE_ACC_RES1)
-        printf("RESERVED\r\n");
-    else if(VOL_ACC(res[3]) == VOLTAGE_ACC_RES2)
-        printf("RESERVED\r\n");
-    else
-        printf("NOT DEFINED\r\n");
-
-    printf("\tEcho: ");
-    printf("0x%02X",res[4]);
-    printf("\r\n");
-}
-
-void SDSPI_init(){
-    cs = 1;
-    // Set to SCK for initialization, and clock card with cs = 1
-    _spi.frequency(MBED_CONF_SD_INIT_FREQUENCY);
-    printf("SPI frequency: %d\n", MBED_CONF_SD_INIT_FREQUENCY);
-    _spi.format(8, 0);
-}
-
-void SDSPI_powerUp(){
-    _spi.set_default_write_value(SPI_FILL_CHAR);
-    // Initial 74 cycles required for few cards, before selecting SPI mode
-    for (uint8_t j = 0; j < 10; ++j) {
-        _spi.write(SPI_FILL_CHAR);
-    }
-    cs = 1;
-    _spi.write(SPI_FILL_CHAR);
-}
-
-uint8_t SDSPI_goIdle(){
-    _spi.write(SPI_FILL_CHAR);
-    cs = 0;
-    _spi.write(SPI_FILL_CHAR);
-
-    SD_command(CMD0, CMD0_ARG, CMD0_CRC);
-    uint8_t res1 = SD_readRes1();
-
-    _spi.write(SPI_FILL_CHAR);
-    cs = 1;
-    _spi.write(SPI_FILL_CHAR);
-
-    return res1;
-}
-
-void SD_readOCR(uint8_t *res)
-{
-    // assert chip select
-    _spi.write(0xFF);
-    cs = 0;
-    _spi.write(0xFF);
-
-    // send CMD58
-    SD_command(CMD58, CMD58_ARG, CMD58_CRC);
-
-    // read response
-    SD_readRes3_7(res);
-
-    // deassert chip select
-    _spi.write(0xFF);
-    cs = 1;
-    _spi.write(0xFF);
-}
-
-void SD_printR3(uint8_t *res)
-{
-    SD_printR1(res[0]);
-
-    if(res[0] > 1) return;
-
-    printf("\tCard Power Up Status: ");
-    if(POWER_UP_STATUS(res[1]))
-    {
-        printf("READY\r\n");
-        printf("\tCCS Status: ");
-        if(CCS_VAL(res[1])){ printf("1\r\n"); }
-        else printf("0\r\n");
-    }
-    else
-    {
-        printf("BUSY\r\n");
-    }
-
-    printf("\tVDD Window: ");
-    if(VDD_2728(res[3])) printf("2.7-2.8, ");
-    if(VDD_2829(res[2])) printf("2.8-2.9, ");
-    if(VDD_2930(res[2])) printf("2.9-3.0, ");
-    if(VDD_3031(res[2])) printf("3.0-3.1, ");
-    if(VDD_3132(res[2])) printf("3.1-3.2, ");
-    if(VDD_3233(res[2])) printf("3.2-3.3, ");
-    if(VDD_3334(res[2])) printf("3.3-3.4, ");
-    if(VDD_3435(res[2])) printf("3.4-3.5, ");
-    if(VDD_3536(res[2])) printf("3.5-3.6");
-    printf("\r\n");
-}
-
-uint8_t SD_sendApp()
-{
-    // assert chip select
-    _spi.write(0xFF);
-    cs = 0;
-    _spi.write(0xFF);
-
-    // send CMD0
-    SD_command(CMD55, CMD55_ARG, CMD55_CRC);
-
-    // read response
-    uint8_t res1 = SD_readRes1();
-
-    // deassert chip select
-    _spi.write(0xFF);
-    cs = 1;
-    _spi.write(0xFF);
-
-    return res1;
-}
-
-uint8_t SD_sendOpCond()
-{
-    // assert chip select
-    _spi.write(0xFF);
-    cs = 0;
-    _spi.write(0xFF);
-
-    // send CMD0
-    SD_command(ACMD41, ACMD41_ARG, ACMD41_CRC);
-
-    // read response
-    uint8_t res1 = SD_readRes1();
-
-    // deassert chip select
-    _spi.write(0xFF);
-    cs = 1;
-    _spi.write(0xFF);
-
-    return res1;
-}
-
-uint8_t SD_init()
-{
-    uint8_t res[5], cmdAttempts = 0;
-
-    SDSPI_powerUp();
-
-    // command card to idle
-    while((res[0] = SDSPI_goIdle()) != 0x01)
-    {
-        cmdAttempts++;
-        if(cmdAttempts > 10) return SD_ERROR;
-    }
-
-    // send interface conditions
-    SD_sendIfCond(res);
-    if(res[0] != 0x01)
-    {
-        return SD_ERROR;
-    }
-    printf("IfCond\n");
-    // check echo pattern
-    if(res[4] != 0xAA)
-    {
-        return SD_ERROR;
-    }
-    printf("Echo");
-    // attempt to initialize card
-    cmdAttempts = 0;
-    do
-    {
-        if(cmdAttempts > 100) return SD_ERROR;
-
-        // send app cmd
-        res[0] = SD_sendApp();
-
-        // if no error in response
-        if(res[0] < 2)
-        {
-            printf("No Error on App\n");
-            res[0] = SD_sendOpCond();
+void readKeys() {
+    for (int i = 0; i < 5; i++) {
+        rows[i] = 1; // Set current row high
+        ThisThread::sleep_for(1ms); // Wait for the row to stabilize
+        //keysMutex.lock(); // Lock the mutex to prevent concurrent access
+        for (int j = 0; j < 4; j++) {
+            keys[i][j] = columns[j].read();
         }
-
-        // wait
-        ThisThread::sleep_for(10ms);
-
-        cmdAttempts++;
+        //keysMutex.unlock(); // Unlock the mutex after writing to keys
+        rows[i] = 0; // Set current row low
     }
-    while(res[0] != SD_READY);
-
-    printf("PreOCR");
-    // read OCR
-    SD_readOCR(res);
-
-    // check card is ready
-    if(!(res[1] & 0x80)) return SD_ERROR;
-
-    return SD_SUCCESS;
 }
 
-/*******************************************************************************
- Read single 512 byte block
- token = 0xFE - Successful read
- token = 0x0X - Data error
- token = 0xFF - Timeout
-*******************************************************************************/
-uint8_t SD_readSingleBlock(uint32_t addr, uint8_t *buf, uint8_t *token)
-{
-    uint8_t res1, read;
-    uint16_t readAttempts;
-
-    // set token to none
-    *token = 0xFF;
-
-    // assert chip select
-    _spi.write(0xFF);
-    cs = 0;
-    _spi.write(0xFF);
-
-    // send CMD17
-    SD_command(CMD17, addr, CMD17_CRC);
-
-    // read R1
-    res1 = SD_readRes1();
-
-    // if response received from card
-    if(res1 != 0xFF)
-    {
-        // wait for a response token (timeout = 100ms)
-        readAttempts = 0;
-        while(++readAttempts != SD_MAX_READ_ATTEMPTS)
-            if((read = _spi.write(0xFF)) != 0xFF) break;
-
-        // if response token is 0xFE
-        if(read == 0xFE)
-        {
-            // read 512 byte block
-            for(uint16_t i = 0; i < 512; i++) *buf++ = _spi.write(0xFF);
-
-            // read 16-bit CRC
-            _spi.write(0xFF);
-            _spi.write(0xFF);
-        }
-
-        // set token to card response
-        *token = read;
+void select() {
+    switch (mainState){
+        case NOTE:
+        case SCALE:
+        case TEMPO:
+            mainState = PROG;
+            break;
+        case PROG:
+            if (mode32) half = !half;
+            break;
+        case MEMORY:
+        case RENAME:
+            screen.selectLetter();
+            break;
+        case SAVELOAD:
+            filename = screen.getFilename();
+            break;
+        case PLAY:
+            if (timer.isRunning()) {
+                nextFilename = screen.getFilename();
+                // Read
+                queue = true;
+            } else {
+                filename = screen.getFilename();
+                // Read
+                buttons.updateStructures();
+            }
+            break;
+        default:
+            break;
     }
+    changeState();
+}
 
-    // deassert chip select
-    _spi.write(0xFF);
-    cs = 1;
-    _spi.write(0xFF);
+void function1() {
+    switch (mainState) {
+        case MAIN:
+        case NOTE:
+        case SCALE:
+        case TEMPO:
+        case CHANNEL:
+            mainState = PROG;
+            break;
+        case PROG:
+            if (shift) {
+                screen.updateMemoryText();
+                screen.setEdit(0);
+                mainState = MEMORY;
+                shift = false;
+            } else {
+                mainState = NOTE;
+                prevNote = note;
+            }
+            break;
+        case MEMORY:
+            filename = screen.saveFilename();
+            // Save File
+            mainState = PROG;
+            break;
+        case SAVELOAD:
+            filename = screen.getFilename();
+            // Read
+            buttons.updateStructures();
+            mainState = PROG;
+            break;
+        case RENAME:
+            // Rename File
+            mainState = SAVELOAD;
+            break;
+        case PLAY:
+            if (!timer.isRunning()) {
+                beat --;
+            } else {
+                timer.allNotesOff();
+                buttons.updateColors();
+            }
+            timer.playPause(); // Toggle Play/Pause
+            break;
+        default:
+            break;
+    }
+    changeState();
+}
 
-    return res1;
+void function2() {
+    switch (mainState) {
+        case MAIN:
+            mainState = PLAY;
+            break;
+        case PROG:
+            if (shift) {
+                prevChn = channel;
+                mainState = CHANNEL;
+                shift = false;
+            } else {
+                if (!timer.isRunning()) {
+                    beat --;
+                } else {
+                    timer.allNotesOff();
+                    buttons.updateColors();
+                }
+                timer.playPause(); // Toggle Play/Pause
+            }
+            break;
+        case NOTE:
+            octave --;
+            if (octave < 0) octave = 0; // Prevent negative octave
+            break;
+        case SCALE:
+            mode --;
+            if (mode < 0) mode = SCALE_COUNT - 1; // Wrap around to last scale
+            break;
+        case TEMPO:
+            tempo[0] = 0;
+            break;
+        case MEMORY:
+        case RENAME:
+            if (shift) {
+                if (screen.getCurPointer()) screen.setCurPointer(false);
+                else screen.setCurPointer(true);
+            } else {
+                if (screen.getUpper()) screen.setUpper(false);
+                else screen.setUpper(true);
+            }
+            break;
+        case SAVELOAD:
+            if (shift) {
+                mainState = RENAME;
+                renameFilename = screen.getFilename();
+                screen.setEdit(0);
+            } else {
+                bank --;
+                if (bank < 1) bank = 8; // Wrap around to last bank
+            }
+            break;
+        case PLAY:
+            bank --;
+            if (bank < 1) bank = 8; // Wrap around to last bank
+            break;
+        default:
+            break;
+    }
+    changeState();
+}
+
+void function3() {
+    switch (mainState) {
+        case PROG:
+            if (shift) {
+                memcpy(prevTempo, tempo, sizeof(tempo)); // Save previous tempo
+                mainState = TEMPO;
+                shift = false;
+            } else {
+                timer.stop();
+                timer.allNotesOff();
+                buttons.updateColors();
+                beat = 0;
+            }
+            break;
+        case NOTE:
+            octave ++;
+            if (octave > 7) octave = 7; // Prevent upper octave
+            break;
+        case SCALE:
+            mode ++;
+            if (mode == SCALE_COUNT) mode = 0; // Wrap around to first scale
+            break;
+        case TEMPO:
+            tempo[0] = 1;
+            break;
+        case MEMORY:
+        case RENAME:
+            screen.setTyping(' ');
+            if (!shift) {
+                screen.left();
+            }
+            break;
+        case SAVELOAD:
+            if (shift) {
+                // Delete
+                screen.updateBanks();
+            } else {
+                bank ++;
+                if (bank > 8) bank = 1; // Wrap around to first bank
+            }
+            break;
+        case PLAY:
+            bank ++;
+            if (bank > 8) bank = 1; // Wrap around to first bank
+            break;
+        default:
+            break;
+    }
+    changeState();
+}
+
+void function4() {
+    switch (mainState) {
+        case NOTE:
+            note = prevNote;
+            mainState = PROG;
+            break;
+        case SCALE:
+            mode = prevMode;
+            tone = prevTone;
+            mainState = PROG;
+            break;
+        case TEMPO:
+            memcpy(tempo, prevTempo, sizeof(tempo)); // Restore previous tempo
+            mainState = PROG;
+            break;
+        case CHANNEL:
+            channel = prevChn;
+            mainState = PROG;
+            break;
+        case PROG:
+            if (shift) {
+                prevMode = mode;
+                prevTone = tone;
+                mainState = SCALE;
+                shift = false;
+            } else {
+                if (hold != 0) hold = 0;
+                else hold = 1;
+            }
+            break;
+        case MEMORY:
+            filename = screen.saveFilename();
+            mainState = SAVELOAD;
+            break;
+        case SAVELOAD:
+            mainState = MEMORY;
+            break;
+        case RENAME:
+            mainState = SAVELOAD;
+            break;
+        case PLAY:
+            timer.stop();
+            timer.allNotesOff();
+            buttons.updateColors();
+            beat = 0;
+            break;
+        default:
+            break;
+    }
+    changeState();
+}
+
+void exit() {
+    switch (mainState){
+		case PROG:
+        case PLAY:
+			mainState = MAIN;
+            break;
+		case NOTE:
+			note = prevNote;
+			mainState = PROG;
+            break;
+		case SCALE:
+			mode = prevMode;
+			tone = prevTone;
+			mainState = PROG;
+            break;
+		case TEMPO:
+			memcpy(tempo, prevTempo, sizeof(tempo)); // Restore previous tempo
+			mainState = PROG;
+            break;
+		case CHANNEL:
+			channel = prevChn;
+			mainState = PROG;
+            break;
+		case MEMORY:
+			mainState = PROG;
+            break;
+		case SAVELOAD:
+			mainState = MEMORY;
+            break;
+        default:
+            break;
+    }
+	changeState();
+}
+
+void left() {
+    switch (mainState) {
+        case PROG:
+            velocity --;
+            if (velocity < 0) velocity = 0; // Prevent lower velocity
+            break;
+        case NOTE:
+            note --;
+            if (note < 0) {
+                octave --;
+                note = 11; // Wrap around to last note in lower octave
+            }
+            if (octave < 0) octave = 0; // Prevent negative octave
+            break;
+        case SCALE:
+            tone --;
+            if (tone < 0) tone = 11; // Wrap around to last tone
+            break;
+        case TEMPO:
+            tempo[1] --;
+            if (tempo[0]) {
+                if (tempo[1] < 0) tempo[1] = 2;
+            } else {
+                if (tempo[1] < 60) tempo[1] = 360; // Prevent lower tempo
+            }
+            break;
+        case CHANNEL:
+            channel --;
+            if (channel < 0) channel = 15; // Wrap around to last channel
+            break;
+        default:
+            break;
+    }
+    screen.left();
+    changeState();
+}
+
+void right() {
+    switch (mainState) {
+        case PROG:
+            velocity ++;
+            if (velocity == -128) velocity = 127; // Prevent upper velocity
+            break;
+        case NOTE:
+            note ++;
+            if (note > 11) {
+                octave ++;
+                note = 0; // Wrap around to first note in upper octave
+            }
+            if (octave > 7) octave = 7; // Prevent upper octave
+            break;
+        case SCALE:
+            tone ++;
+            if (tone > 11) tone = 0; // Wrap around to first tone
+            break;
+        case TEMPO:
+            tempo[1] ++;
+            if (tempo[0]) {
+                if (tempo[1] > 2) tempo[1] = 0;
+            } else {
+                if (tempo[1] > 360) tempo[1] = 60; // Prevent upper tempo
+            }
+            break;
+        case CHANNEL:
+            channel ++;
+            if (channel > 15) channel = 0; // Wrap around to first channel
+            break;
+        default:
+            break;
+    }
+    screen.right();
+    changeState();
+}
+
+void changeState() {
+    screen.updateScreen();
+    buttons.updateColors();
+    tempoChange();
+}
+
+void tempoChange() {
+    if (!tempo[0]) {
+        timer.setInterval(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1])); // Internal tempo
+    }
+}
+
+void timeout() {
+    beat ++;
+    if ((mode32 && beat == 32) || (!mode32 && beat == 16)) {
+        beat = 0; // Reset beat after 32 or 16 beats
+        if (mainState == PLAY && queue) {
+            // Load next composition
+            memcpy(midiMessages, nextMessages, sizeof(midiMessages));
+            memcpy(offMessages, nextOffMessages, sizeof(offMessages));
+            memcpy(tempo, nextTempo, sizeof(tempo));
+            filename = nextFilename;
+            timer.allNotesOff(); // Stop all notes
+            buttons.updateStructures();
+            queue = false;
+        }
+    }
+    timer.beatPlay(); // Send MIDI messages for the current beat
+    buttons.updateColors();
 }
 
 int main()
 {
-    
-    ThisThread::sleep_for(10000ms);
-    //uint8_t res[5], sdBuf[512], token;
-    uint8_t res7[5];
-    uint8_t res3[5];
-    uint16_t attempts = 0;
-    SDSPI_init();
-    /*
-    if(SD_init() != SD_SUCCESS)
-    {
-        printf("Error initializaing SD CARD\r\n"); while(1);
-    }
-    else
-    {
-        printf("SD Card initialized\r\n");
-    }
-
-    // read sector 0
-    res[0] = SD_readSingleBlock(0x00000000, sdBuf, &token);
-    */
-
-    
-    SDSPI_powerUp();
-    res0 = SDSPI_goIdle();
-    SD_sendIfCond(res7);
-    SD_readOCR(res3);
+    // Give the USB a moment to initialize and enumerate
     ThisThread::sleep_for(100ms);
-    do{
-        res55 = SD_sendApp();
-        ThisThread::sleep_for(200ms);
-        res41 = SD_sendOpCond();
-        ThisThread::sleep_for(100ms);
-        attempts++;
-        printf("%i, r55=%02X,r41=%02X\n",attempts, res55, res41);
-    }while(res41 != 0);
+    timer.initUSB();
     
-    ThisThread::sleep_for(100ms);
-    while(1){
+    // Set and Attach Trigger
+    timer.start(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1]));
+    screen.init();
+    //ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
+    //ledThread.start(changeLED); // Start LED change thread
+    //encthread.start(do_enc);
+    ThisThread::sleep_for(1s); // Wait for the TFT to initialize
+    //midiFile.init();
+    
+    // Programming Test
+    beatsPerTone[576] = 0x10400000;
+    beatsPerTone[608] = 0x00400000;
+    holdKey holdTest = {0,0,60};
+    holded.emplace(holdTest,5);
+    holdKey holdTest2 = {9,0,62};
+    holded.emplace(holdTest2,14);
+    mainState = PROG;
+    changeState(); // Initial state change
+    ThisThread::sleep_for(1s);
 
-        SD_printR1(res0);
-        SD_printR7(res7);
-        SD_printR3(res3);
-        SD_printR1(res55);
-        SD_printR1(res41);
+    // Text Edit Test
+    shift = true;
+    function1();
+    ThisThread::sleep_for(500ms);
+    right();
+    ThisThread::sleep_for(500ms);
+    right();
+    ThisThread::sleep_for(500ms);
+    select();
+    ThisThread::sleep_for(200ms);
+    right();
+    ThisThread::sleep_for(500ms);
+    function2();
+    ThisThread::sleep_for(200ms);
+    select();
+    ThisThread::sleep_for(500ms);
+    function1();
+    ThisThread::sleep_for(1s);
+    shift = true;
+    function1();
+    
+    uint16_t testing = 0;
+    while (true) {
+        timer.poll();
+        readKeys();
+        if (memcmp(keys, lastKeys, sizeof(keys)) != 0) {
+            if (keys[0][0] && !lastKeys[0][0]) { // Function 1
+                function1();
+            }
+            if (keys[0][1] && !lastKeys[0][1]) { // Function 2
+                function2();
+            }
+            if (keys[0][2] && !lastKeys[0][2]) { // Function 3
+                function3();
+            }
+            if (keys[0][3] && !lastKeys[0][3]) { // Function 4
+                function4();
+            }
+            for(int i = 1; i < 5; i++) {
+                for(int j = 0; j < 4; j++) {
+                    if (keys[i][j] && !lastKeys[i][j]) { // Key pressed
+                        buttons.press((i-1) * 4 + j);
+                        screen.updateScreen();
+                    }
+                }
+            }
+            memcpy(lastKeys, keys, sizeof(keys)); // Update lastKeys
+        }
+        if (toggle32 != lastToggle){
+            mode32 = toggle32;
+            lastToggle = toggle32;
+        }
+        if (encoder.getRotaryEncoder()){
+            int current=encoder.read();
+            if (current == 1) right();
+            if (current == -1) left();
+        }
+
+        
+        if (testing > 5000) {
+            timer.deinitUSB();
+            ThisThread::sleep_for(500ms);
+            midiFile.initUSB();
+        }else{
+            testing++;
+        }
+
+        if (midiFile.getUSB()) midiFile.process();
+        if (midiFile.media_removed()){
+            midiFile.deinitUSB();
+            timer.initUSB();
+        }
         /*
-        // print response
-        if(SD_R1_NO_ERROR(res[0]) && (token == 0xFE))
-        {
-            for(uint16_t i = 0; i < 512; i++) printf("0x%02X",sdBuf[i]);
-            printf("\r\n");
+        //ledDataMutex.lock();
+        if (memcmp(ledData, lastLedData, sizeof(ledData)) != 0) {
+            ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
+            memcpy(lastLedData, ledData, sizeof(ledData)); // Update last LED data
         }
-        else
-        {
-            printf("Error reading sector\r\n");
-        }
+        //ledDataMutex.unlock();
         */
     }
-        
-    /*
-    ThisThread::sleep_for(10000ms);
-    bd.init();
-
-    FATFileSystem::format(&bd);
-
-    int err = heap_fs.mount(&bd);
-
-    if (err) {
-        printf("%s filesystem mount failed\ntry to reformat device... \r\n", heap_fs.getName());
-        err = heap_fs.reformat(&bd);
-    }
-
-    // If still error, then report failure
-    if (err) {
-        printf("Error: Unable to format/mount the device.\r\n");
-        while (1);
-    }*/
-    /*
-    USBMSD usb(&bd);
-
-    while (true) {
-        usb.process();
-    }*/
-    return 0;
 }

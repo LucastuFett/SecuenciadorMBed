@@ -103,7 +103,7 @@ https://github.com/mbed-ce/mbed-os/wiki/MbedOS-configuration#configuration-via-c
 if("MBED_CONF_TARGET_APPLICATION_PROFILE=bare-metal" IN_LIST MBED_CONFIG_DEFINITIONS)
     target_link_libraries(${PROJECT_NAME} mbed-baremetal)
 else()
-    target_link_libraries(${PROJECT_NAME} mbed-os mbed-usb mbed-storage-blockdevice mbed-storage-sd mbed-usb-msd mbed-storage-fat)
+    target_link_libraries(${PROJECT_NAME} mbed-os mbed-usb mbed-usb-msd mbed-storage-fat mbed-storage-blockdevice) # mbed-storage-sd
 endif()
 
 
