@@ -214,7 +214,14 @@ void function1() {
 void function2() {
     switch (mainState) {
         case MAIN:
-            mainState = PLAY;
+            if (shift) {
+                if (!timer.getUSB()){
+                    midiFile.deinitUSB();
+                    timer.initUSB();
+                }
+                shift = false;
+            }
+            else mainState = PLAY;
             break;
         case PROG:
             if (shift) {
@@ -274,6 +281,15 @@ void function2() {
 
 void function3() {
     switch (mainState) {
+        case MAIN:
+            if (shift) {
+                if (!midiFile.getUSB()){
+                    timer.deinitUSB();
+                    midiFile.initUSB();
+                }
+                shift = false;
+            } //else mainState = LAUNCH;
+            break;
         case PROG:
             if (shift) {
                 memcpy(prevTempo, tempo, sizeof(tempo)); // Save previous tempo
@@ -528,7 +544,7 @@ int main()
     //ledThread.start(changeLED); // Start LED change thread
     //encthread.start(do_enc);
     ThisThread::sleep_for(1s); // Wait for the TFT to initialize
-    //midiFile.init();
+    midiFile.init();
     
     // Programming Test
     beatsPerTone[576] = 0x10400000;
@@ -561,8 +577,15 @@ int main()
     ThisThread::sleep_for(1s);
     shift = true;
     function1();
+    ThisThread::sleep_for(1s);
+    exit();
+    ThisThread::sleep_for(500ms);
+    exit();
+    ThisThread::sleep_for(500ms);
+    midiFile.saveToFile();
+    shift = true;
+    function3();
     
-    uint16_t testing = 0;
     while (true) {
         timer.poll();
         readKeys();
@@ -597,15 +620,6 @@ int main()
             int current=encoder.read();
             if (current == 1) right();
             if (current == -1) left();
-        }
-
-        
-        if (testing > 5000) {
-            timer.deinitUSB();
-            ThisThread::sleep_for(500ms);
-            midiFile.initUSB();
-        }else{
-            testing++;
         }
 
         if (midiFile.getUSB()) midiFile.process();

@@ -13,19 +13,37 @@ class MIDIFile : public USBMSD{
     FATFileSystem _heap_fs;
     HeapBlockDevice _bd;
     bool _usb;
+    vector<uint8_t> _mtrk;
 
-virtual const uint8_t *string_iproduct_desc() override {
-        static const uint8_t custom_desc[] = {
-            0x1A, STRING_DESCRIPTOR,
-            'L', 0, 'u', 0, 'c', 0, 'a', 0, 's', 0, ' ', 0, 'G', 0, 'r', 0, 'o', 0, 'o', 0, 'v', 0, 'e', 0
-        };
-        return custom_desc;
-}
+    virtual const uint8_t *string_iproduct_desc() override {
+            static const uint8_t custom_desc[] = {
+                0x1A, STRING_DESCRIPTOR,
+                'L', 0, 'u', 0, 'c', 0, 'a', 0, 's', 0, ' ', 0, 'G', 0, 'r', 0, 'o', 0, 'o', 0, 'v', 0, 'e', 0
+            };
+            return custom_desc;
+    }
+
+    std::string trim(const std::string &s)
+    {
+        std::string::const_iterator it = s.begin();
+        while (it != s.end() && isspace(*it))
+            it++;
+
+        std::string::const_reverse_iterator rit = s.rbegin();
+        while (rit.base() != it && isspace(*rit))
+            rit++;
+
+        return std::string(it, rit.base());
+    }
+
+    // Calculate Delta
+    void calcDelta(uint32_t value);
 
 public:
     // Constructor
     MIDIFile();
     
+    // Create Directory Structure
     void init();
 
     // Connect USBMIDI Device
@@ -36,5 +54,8 @@ public:
 
     // Get USB State
     bool getUSB();
+
+    // Save a file
+    void saveToFile();
 
 };

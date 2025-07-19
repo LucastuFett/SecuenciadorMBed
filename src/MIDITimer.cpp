@@ -83,25 +83,25 @@ void MIDITimer::beatPlay() {
     }
     for (int i = 0; i < 10; i++) {
         index = i * 32 + beat;
-        if (offMessages[index][0] != 0) {
+        if (offMessages[index][0] != 0 && _usb) {
             write(MIDIMessage::NoteOn(offMessages[index][1], offMessages[index][2], offMessages[index][0] & 0xF));
         }
     }
     for (int i = 0; i < 10; i++) {
         index = i * 32 + beat;
-        if (midiMessages[index][0] != 0) {
+        if (midiMessages[index][0] != 0 && _usb) {
             /*
             if (channelEnabled[midiMessages[index][0] & 0xF] == 0) {
                 continue; // Skip if channel is disabled
             }*/
-            //write(MIDIMessage::NoteOn(midiMessages[index][1], midiMessages[index][2], midiMessages[index][0] & 0xF));
+            write(MIDIMessage::NoteOn(midiMessages[index][1], midiMessages[index][2], midiMessages[index][0] & 0xF));
         }
     }
 }
 
 void MIDITimer::allNotesOff() {
     for (int i = 0; i < 16; i++) {
-        if (channels[i] != 0) {
+        if (channels[i] != 0 && _usb) {
             write(MIDIMessage::AllNotesOff(i));
         }
     }

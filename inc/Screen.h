@@ -4,7 +4,7 @@
 
 // Constants
 
-const string labels[10][8] = {{"Program", "Play", "Launch", "DAW","","","",""},
+const string labels[10][8] = {{"Program", "Play", "Launch", "DAW","","USBMIDI","USBMSD",""},
 				{"Note", "Play/Pause", "Stop", "Hold","Memory","Channel","Tempo","Scale"},
 				{"Accept", "Octave -", "Octave +", "Cancel","","","",""},
 				{"Save","Shift","Backspace","Load","","Special","Space",""},
