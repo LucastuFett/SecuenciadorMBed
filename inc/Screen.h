@@ -48,15 +48,21 @@ class Screen : public SPI_TFT_ILI9341 {
     int8_t _curOctave;
     vector <uint16_t> _possible[2];
     char _typing[18];
-    enum state _lastState;
-
+    string _files[12];
+    
+    
+    enum state _lastState = MAIN;
     bool _menu = false;
     bool _piano = false;
     bool _typeBox = false;
     bool _memBanks = false;
     bool _lastHalf = false;
+    string _lastFiles[12];
+    uint8_t _lastBank = 1;
     uint8_t _lastHold = 0;
     int8_t _lastVel = 127;
+    int8_t _lastSelectedFile = 0;
+    int8_t _lastCurrentFile = 0;
 
     // Cover Title
     void coverTitle();
@@ -145,4 +151,7 @@ public:
 
     // Update Typing Text at Pointer
     void setTyping(char type);
+
+    // Error Message
+    void showError(string error);
 };

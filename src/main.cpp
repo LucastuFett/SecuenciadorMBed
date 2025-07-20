@@ -556,6 +556,7 @@ int main()
     mainState = PROG;
     changeState(); // Initial state change
     ThisThread::sleep_for(1s);
+    midiFile.saveToFile();
 
     // Text Edit Test
     shift = true;
@@ -578,11 +579,14 @@ int main()
     shift = true;
     function1();
     ThisThread::sleep_for(1s);
+    function4();
+    ThisThread::sleep_for(20s);
+    exit();
+    ThisThread::sleep_for(1s);
     exit();
     ThisThread::sleep_for(500ms);
     exit();
     ThisThread::sleep_for(500ms);
-    midiFile.saveToFile();
     shift = true;
     function3();
     
@@ -623,7 +627,7 @@ int main()
         }
 
         if (midiFile.getUSB()) midiFile.process();
-        if (midiFile.media_removed()){
+        if (midiFile.media_removed() && midiFile.getUSB()){
             midiFile.deinitUSB();
             timer.initUSB();
         }

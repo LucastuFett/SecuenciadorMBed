@@ -1,4 +1,5 @@
 #include "Screen.h"
+#include "MIDIFile.h"
 
 // Global variables for MIDI messages and control
 extern enum state mainState;
@@ -18,6 +19,8 @@ extern map<holdKey,uint8_t,CompareHoldKey> holded; // Holds the start and end of
 extern uint8_t hold; // Hold state: 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
 extern string filename;
 extern string renameFilename;
+extern uint8_t bank;
+extern MIDIFile midiFile;
 
 Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char *name)
     : SPI_TFT_ILI9341(mosi, miso, sclk, cs, reset, dc, name) {
@@ -30,9 +33,10 @@ Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName res
 		_selectedFile = 0;
 		_currentFile = 0;
 		_curOctave = 2;
-		_lastState = MAIN;
 
 		for (uint8_t i = 0; i < 18; i++) _typing[i] = ' ';
+		for (uint8_t i = 0; i < 12; i++) _files[i] = "";
+		for (uint8_t i = 0; i < 12; i++) _lastFiles[i] = "";
 
 		set_orientation(1);
 		background(Black);    // set background to Black
@@ -121,6 +125,7 @@ void Screen::coverTitle() {
 
 void Screen::updateText(){
 	// Display the title
+	const uint16_t titlesOffset[] = {65,0,0,110,110,110,0,0,0,150};
 	set_font((unsigned char*) Arial24x23);
 	switch(mainState) {
 		case PROG:
@@ -159,7 +164,7 @@ void Screen::updateText(){
 			break;
 
 		default:
-			locate(170 - (titles[mainState].length() >> 1) * 24,5);
+			locate(titlesOffset[mainState],5);
 			puts(titles[mainState].c_str());
 			break;
 	}
@@ -248,9 +253,9 @@ void Screen::updateMenuText(uint8_t menu) {
 			locate(268,116);
 			puts(to_string(velocity).c_str());
 
-			locate(270,160);
+			locate(260,160);
 			puts("1-16");
-			locate(270,180);
+			locate(260,180);
 			foreground(DarkGrey);
 			puts("17-32");
 			foreground(White);
@@ -282,17 +287,17 @@ void Screen::updateMenuText(uint8_t menu) {
 
 		case 5: // Half
 			if (!half || !mode32) {
-				locate(270,160);
+				locate(260,160);
 				puts("1-16");
-				locate(270,180);
+				locate(260,180);
 				foreground(DarkGrey);
 				puts("17-32");
 				foreground(White);				
 			} else {
-				locate(270,160);
+				locate(260,160);
 				foreground(DarkGrey);
 				puts("1-16");
-				locate(270,180);
+				locate(260,180);
 				foreground(White);
 				puts("17-32");
 			}
@@ -560,69 +565,54 @@ void Screen::showTyping(bool show){
 void Screen::showBanks(bool show){
 	
 	if (show && !_memBanks) {
-		//rect(5,50,314,70,Cyan);
-		//fillrect(6,51,313,69,Black);
+		set_font((unsigned char*) Arial16x16);
+		locate(20,12);
+		puts(("Bank " + to_string(bank)).c_str());
+		_lastBank = bank;
+		set_font((unsigned char*) Arial12x12);
+		midiFile.getFiles(bank, _files);
+		uint16_t bkgColor = 0;
+		for (uint8_t i = 0; i < 3; i ++){
+			for (uint8_t j = 0; j < 4; j ++){
+				if ((i*3 + j) == _selectedFile){
+					fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Blue);
+					bkgColor = Blue;
+				}
+				else{
+					fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, LightGrey);
+					bkgColor = LightGrey;
+				}
+				if ((i*3 + j) == _currentFile && mainState == PLAY) {
+					fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Purple);
+					bkgColor = Purple;
+				}
+				if (_files[i*3 + j] != ""){
+					background(bkgColor);
+					string name = _files[i * 3 + j];
+					locate(17 + j * 74, 43 + i * 54);
+					puts(name.substr(0, 7).c_str());
+					locate(17 + j * 74, 59 + i * 54);
+					puts(name.length() > 7 ? name.substr(7, 7).c_str() : "");
+					locate(30 + j * 74, 75 + i * 54);
+					puts(name.length() > 14 ? name.substr(14).c_str() : "");
+					background(Black);
+				}
+				
+			}
+		}
+		copy(begin(_files), end(_files), _lastFiles);
+		_lastSelectedFile = _selectedFile;
+		_lastCurrentFile = _currentFile;
 	} else if (!show && _memBanks) {
-		//fillrect(5,50,314,70, Black); // Hide Banks Box
+		fillrect(10, 40, 310, 200, Black); // Hide Banks Box
+		fillrect(20, 10, 113, 30, Black); // Hide Bank Number
 	}
 	_memBanks = show;
-}
-
-void Screen::updateScreen() {
-	if (_lastState != mainState) coverTitle();
-	switch (mainState) {
-		case MAIN:
-			showMenu(false);
-			showPiano(false);
-			break;
-		case PROG:
-			showTyping(false);
-			showMenu(true);
-			showPiano(true);
-			paintGrid();
-			if (velocity != _lastVel) {
-				updateMenuText(4);
-				_lastVel = velocity;
-			}
-			if (half != _lastHalf){
-				updateMenuText(5);
-				_lastHalf = half;
-			}
-			if (hold != _lastHold){
-				updateHold();
-				_lastHold = hold;
-			}
-			break;
-		case CHANNEL:
-			updateMenuText(1);
-			break;
-		case TEMPO:
-			updateMenuText(2);
-			break;
-		case SCALE:
-			getPossible();
-			paintScales();
-			paintGrid();
-			updateMenuText(3);
-			break;
-		case MEMORY:
-			showMenu(false);
-			showPiano(false);
-			showBanks(false);
-			showTyping(true);
-			updateMemoryText();
-			break;
-		default:
-			break;
-	}
-	if (_lastState != mainState) updateText();
-	_lastState = mainState;
 }
 
 void Screen::selectLetter() {
 	if (_edit == 1){
 		_edit = 2;
-		// May work with just updateMemoryText Draw the pointed letter with white background and black foreground typing[typePointer].add_theme_stylebox_override("normal",currentLabel);
 		const char* findLowerPtr = std::find(letters, letters + 26, _typing[_typePointer]);
 		int findLower = (findLowerPtr != letters + 26) ? (findLowerPtr - letters) : -1;
 		const char* findUpperPtr = std::find(shLetters, shLetters + 26, _typing[_typePointer]);
@@ -645,7 +635,6 @@ void Screen::selectLetter() {
 		}
 	}else if (_edit == 2){
 		_edit = 1;
-		// May work with just updateMemoryText Draw the pointed letter with grey background and white foreground typing[typePointer].add_theme_stylebox_override("normal",currentLabel);
 		_letterPointer = 0;
 		_specialPointer = 0;
 		_curPointer = 0;
@@ -655,7 +644,8 @@ void Screen::selectLetter() {
 }
 
 string Screen::getFilename() {
-	return "";
+	if (mainState == PLAY) _currentFile = _selectedFile;
+	return _files[_selectedFile];
 }
 
 string Screen::saveFilename() {
@@ -724,5 +714,107 @@ void Screen::updateMemoryText() {
 }
 
 void Screen::updateBanks() {
+	if (bank != _lastBank){
+		set_font((unsigned char*) Arial16x16);
+		locate(20,12);
+		puts(("Bank " + to_string(bank)).c_str());
+		_lastBank = bank;
+		set_font((unsigned char*) Arial12x12);
+	}
 
+	midiFile.getFiles(bank, _files);
+	uint16_t bkgColor = 0;
+	for (uint8_t i = 0; i < 3; i ++){
+		for (uint8_t j = 0; j < 4; j ++){
+			if ((i*3 + j) == _selectedFile && _selectedFile != _lastSelectedFile){
+				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Blue);
+				bkgColor = Blue;
+			}
+			else if(_selectedFile != _lastSelectedFile || _currentFile != _lastCurrentFile){
+				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, LightGrey);
+				bkgColor = LightGrey;
+			}
+			if ((i*3 + j) == _currentFile && mainState == PLAY && _currentFile != _lastCurrentFile) {
+				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Purple);
+				bkgColor = Purple;
+			}
+			if(_files[(i*3 + j)] != _lastFiles[(i*3 + j)] && _files[(i*3 + j)] != ""){
+				background(bkgColor);
+				string name = _files[i * 3 + j];
+				locate(17 + j * 74, 43 + i * 54);
+				puts(name.substr(0, 7).c_str());
+				locate(17 + j * 74, 59 + i * 54);
+				puts(name.length() > 7 ? name.substr(7, 7).c_str() : "");
+				locate(30 + j * 74, 75 + i * 54);
+				puts(name.length() > 14 ? name.substr(14).c_str() : "");
+				background(Black);
+			}
+		}
+	}
+	copy(begin(_files), end(_files), _lastFiles);
+	_lastSelectedFile = _selectedFile;
+	_lastCurrentFile = _currentFile;
+
+}
+
+
+void Screen::updateScreen() {
+	if (_lastState != mainState) coverTitle();
+	switch (mainState) {
+		case MAIN:
+			showMenu(false);
+			showPiano(false);
+			break;
+		case PROG:
+			showTyping(false);
+			showMenu(true);
+			showPiano(true);
+			paintGrid();
+			if (velocity != _lastVel) {
+				updateMenuText(4);
+				_lastVel = velocity;
+			}
+			if (half != _lastHalf){
+				updateMenuText(5);
+				_lastHalf = half;
+			}
+			if (hold != _lastHold){
+				updateHold();
+				_lastHold = hold;
+			}
+			break;
+		case CHANNEL:
+			updateMenuText(1);
+			break;
+		case TEMPO:
+			updateMenuText(2);
+			break;
+		case SCALE:
+			getPossible();
+			paintScales();
+			paintGrid();
+			updateMenuText(3);
+			break;
+		case MEMORY:
+			showMenu(false);
+			showPiano(false);
+			showBanks(false);
+			showTyping(true);
+			updateMemoryText();
+			break;
+		case SAVELOAD:
+			showTyping(false);
+			showBanks(true);
+			updateBanks();
+			break;
+		case RENAME:
+			showBanks(false);
+			showTyping(true);
+			updateMemoryText();
+			break;			
+		default:
+			break;
+	}
+	if (_lastState != mainState) updateText();
+	_lastState = mainState;
 }

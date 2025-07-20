@@ -36,6 +36,19 @@ class MIDIFile : public USBMSD{
         return std::string(it, rit.base());
     }
 
+    uint32_t get32(FILE *f){
+        uint8_t msb = fgetc(f);
+        uint8_t smsb = fgetc(f);
+        uint8_t tmsb = fgetc(f);
+        uint8_t lsb = fgetc(f);
+        return (msb << 24) | (smsb << 16) | (tmsb << 8) | lsb;
+    }
+
+    uint32_t get16(FILE *f){
+        uint8_t msb = fgetc(f);
+        uint8_t lsb = fgetc(f);
+        return (msb << 8) | lsb;
+    }
     // Calculate Delta
     void calcDelta(uint32_t value);
 
@@ -58,4 +71,18 @@ public:
     // Save a file
     void saveToFile();
 
+    // Read from a file
+    void readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], uint16_t bpm[2], string filename, uint8_t bank);
+
+    // Read Delta Value from File
+    void readDelta(FILE *f, uint32_t response[]);
+
+    // Get files in a bank folder
+    void getFiles(uint8_t bank, string files[12]);
+
+    // Delete a file
+    void deleteFile(string filename, uint8_t bank);
+
+    // Rename a FIle
+    void renameFile(string origFilename, string filename, uint8_t bank);
 };
