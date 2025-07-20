@@ -81,6 +81,7 @@ add_executable(${PROJECT_NAME}
     drivers/src/GraphicsDisplay.cpp
     drivers/src/SPI_TFT_ILI9341.cpp
     drivers/src/TextDisplay.cpp
+    drivers/src/spi_api_fix.c
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
 )
