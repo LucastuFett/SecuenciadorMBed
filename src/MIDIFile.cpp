@@ -34,8 +34,6 @@ _bd(HEAP_BLOCK_DEVICE_SIZE, DEFAULT_BLOCK_SIZE)
 
 void MIDIFile::init() {
 	mkdir("/fs/1",0x1FF);
-	// Load Test Files
-    // DIR *d = opendir("/fs/1");
     mkdir("/fs/2",0x1FF);
     mkdir("/fs/3",0x1FF);
     mkdir("/fs/4",0x1FF);
@@ -43,6 +41,27 @@ void MIDIFile::init() {
     mkdir("/fs/6",0x1FF);
     mkdir("/fs/7",0x1FF);
     mkdir("/fs/8",0x1FF);
+
+	loadTestFiles();
+}
+
+void MIDIFile::loadTestFiles(){
+	FILE *file = fopen("/fs/1/Jump.mid","w");
+	for (uint8_t c : Jump) fputc(c,file);
+	fflush(file);
+	fclose(file);
+	FILE *file = fopen("/fs/1/Out of Touch.mid","w");
+	for (uint8_t c : OutOfTouch) fputc(c,file);
+	fflush(file);
+	fclose(file);
+	FILE *file = fopen("/fs/1/Smalltown Boy.mid","w");
+	for (uint8_t c : Smalltown) fputc(c,file);
+	fflush(file);
+	fclose(file);
+	FILE *file = fopen("/fs/1/Take On Me.mid","w");
+	for (uint8_t c : Take) fputc(c,file);
+	fflush(file);
+	fclose(file);
 }
 
 void MIDIFile::initUSB(){
@@ -124,7 +143,7 @@ void MIDIFile::calcDelta(uint32_t value){
     }
 }
 
-void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], uint16_t bpm[2], string filename, uint8_t bank){
+void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank){
 	FILE *file = fopen(("/fs/" + to_string(bank) + "/" + trim(filename) + ".mid").c_str(),"r");
 	uint16_t delta = 0;
 	uint32_t tempo = 0;

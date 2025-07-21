@@ -1,4 +1,5 @@
 #include "mbed.h"
+#include "testFiles.h"
 #include "USBMSD.h"
 #include "HeapBlockDevice.h"
 #include "FATFileSystem.h"
@@ -52,6 +53,8 @@ class MIDIFile : public USBMSD{
     // Calculate Delta
     void calcDelta(uint32_t value);
 
+    // Load Test FIles
+    void loadTestFiles();
 public:
     // Constructor
     MIDIFile();
@@ -72,7 +75,7 @@ public:
     void saveToFile();
 
     // Read from a file
-    void readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], uint16_t bpm[2], string filename, uint8_t bank);
+    void readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank);
 
     // Read Delta Value from File
     void readDelta(FILE *f, uint32_t response[]);

@@ -757,7 +757,6 @@ void Screen::updateBanks() {
 
 }
 
-
 void Screen::updateScreen() {
 	if (_lastState != mainState) coverTitle();
 	switch (mainState) {
@@ -817,4 +816,14 @@ void Screen::updateScreen() {
 	}
 	if (_lastState != mainState) updateText();
 	_lastState = mainState;
+}
+
+void Screen::showError(string error){
+	set_font((unsigned char*) Arial16x16);
+	fillrect(10,100,310,140,Black);
+	rect(9,109,311,141,Red);
+	locate(15,112);
+	puts(error.c_str());
+	set_font((unsigned char*) Arial12x12);
+
 }

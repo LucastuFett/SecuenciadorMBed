@@ -106,7 +106,7 @@ uint32_t lastLedData[16];
 
 uint8_t nextMessages[320][3] = {{0}};
 uint8_t nextOffMessages[320][3] = {{0}}; 
-uint16_t nextTempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
+int16_t nextTempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
 string nextFilename = "";
 bool queue = false;
 
@@ -147,11 +147,11 @@ void select() {
         case PLAY:
             if (timer.isRunning()) {
                 nextFilename = screen.getFilename();
-                // Read
+                midiFile.readFromFile(nextMessages,nextOffMessages,nextTempo,nextFilename,bank);
                 queue = true;
             } else {
                 filename = screen.getFilename();
-                // Read
+                midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank);
                 buttons.updateStructures();
             }
             break;
@@ -183,17 +183,17 @@ void function1() {
             break;
         case MEMORY:
             filename = screen.saveFilename();
-            // Save File
+            midiFile.saveToFile();
             mainState = PROG;
             break;
         case SAVELOAD:
             filename = screen.getFilename();
-            // Read
+            midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank);
             buttons.updateStructures();
             mainState = PROG;
             break;
         case RENAME:
-            // Rename File
+            midiFile.renameFile(renameFilename, screen.saveFilename(), bank);
             mainState = SAVELOAD;
             break;
         case PLAY:
@@ -322,7 +322,7 @@ void function3() {
             break;
         case SAVELOAD:
             if (shift) {
-                // Delete
+                midiFile.deleteFile(screen.getFilename(),bank);
                 screen.updateBanks();
             } else {
                 bank ++;
@@ -556,7 +556,7 @@ int main()
     mainState = PROG;
     changeState(); // Initial state change
     ThisThread::sleep_for(1s);
-    midiFile.saveToFile();
+    //midiFile.saveToFile();
 
     // Text Edit Test
     shift = true;
@@ -580,7 +580,7 @@ int main()
     function1();
     ThisThread::sleep_for(1s);
     function4();
-    ThisThread::sleep_for(20s);
+    ThisThread::sleep_for(10s);
     exit();
     ThisThread::sleep_for(1s);
     exit();
