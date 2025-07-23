@@ -119,8 +119,8 @@ void Screen::setTyping(char type){
 
 void Screen::coverTitle() {
 	// Cover the previous title
-	fillrect(0,0,320,35, Black);
-	fillrect(240,0,320,70, Black);
+	if(_lastState != PROG && _lastState != NOTE && _lastState != CHANNEL && _lastState != TEMPO && _lastState != SCALE) fillrect(0,0,320,35, Black);
+	else fillrect(240,0,320,70, Black);
 }
 
 void Screen::updateText(){
@@ -160,7 +160,7 @@ void Screen::updateText(){
 			locate(245,10);
 			puts("Edit");
 			locate(245,35);
-			puts("Temp");
+			puts("Tem");
 			break;
 
 		default:
@@ -350,7 +350,7 @@ void Screen::paintScales(){
 
 	// If the note was in the scale, paint it green for selected, if not orange for selected
 	if (pos != -1) fillrect(72, 201 - (_possible[0][pos] * 8) - 4 - offset, 78, 201 - (_possible[0][pos] * 8) - offset, Green);
-	else fillrect(72, 201 - (note * 8) - 4 - offset, 78, 201 - (_possible[0][pos] * 8) - offset, Orange);
+	else fillrect(72, 201 - (note * 8) - 4 - offset, 78, 201 - (note * 8) - offset, Orange);
 
 	// Write the Current Octave down in C
 	locate(48,195);
@@ -724,6 +724,7 @@ void Screen::updateBanks() {
 
 	midiFile.getFiles(bank, _files);
 	uint16_t bkgColor = 0;
+	static uint16_t lastBkgColor;
 	for (uint8_t i = 0; i < 3; i ++){
 		for (uint8_t j = 0; j < 4; j ++){
 			if ((i*3 + j) == _selectedFile && _selectedFile != _lastSelectedFile){
@@ -738,7 +739,7 @@ void Screen::updateBanks() {
 				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Purple);
 				bkgColor = Purple;
 			}
-			if(_files[(i*3 + j)] != _lastFiles[(i*3 + j)] && _files[(i*3 + j)] != ""){
+			if((_files[(i*3 + j)] != _lastFiles[(i*3 + j)] && _files[(i*3 + j)] != "") || lastBkgColor != bkgColor){
 				background(bkgColor);
 				string name = _files[i * 3 + j];
 				locate(17 + j * 74, 43 + i * 54);
@@ -749,6 +750,7 @@ void Screen::updateBanks() {
 				puts(name.length() > 14 ? name.substr(14).c_str() : "");
 				background(Black);
 			}
+			lastBkgColor = bkgColor;
 		}
 	}
 	copy(begin(_files), end(_files), _lastFiles);
@@ -781,6 +783,9 @@ void Screen::updateScreen() {
 				updateHold();
 				_lastHold = hold;
 			}
+			break;
+		case NOTE:
+			paintScales();
 			break;
 		case CHANNEL:
 			updateMenuText(1);

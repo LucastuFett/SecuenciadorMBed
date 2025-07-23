@@ -50,15 +50,15 @@ void MIDIFile::loadTestFiles(){
 	for (uint8_t c : Jump) fputc(c,file);
 	fflush(file);
 	fclose(file);
-	FILE *file = fopen("/fs/1/Out of Touch.mid","w");
+	file = fopen("/fs/1/Out of Touch.mid","w");
 	for (uint8_t c : OutOfTouch) fputc(c,file);
 	fflush(file);
 	fclose(file);
-	FILE *file = fopen("/fs/1/Smalltown Boy.mid","w");
+	file = fopen("/fs/1/Smalltown Boy.mid","w");
 	for (uint8_t c : Smalltown) fputc(c,file);
 	fflush(file);
 	fclose(file);
-	FILE *file = fopen("/fs/1/Take On Me.mid","w");
+	file = fopen("/fs/1/Take On Me.mid","w");
 	for (uint8_t c : Take) fputc(c,file);
 	fflush(file);
 	fclose(file);
@@ -149,7 +149,7 @@ void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[32
 	uint32_t tempo = 0;
 	uint8_t tone = 0;
 	uint8_t mode = 0;
-	uint8_t type = 0;
+	uint16_t type = 0;
 	uint8_t messageCount[32] = {0};
 	uint8_t offMessageCount[32] = {0};
 	uint32_t buffer = get32(file);
@@ -285,7 +285,7 @@ void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[32
 						index = (curMsg * 32) + curBeat;
 						indexOff = (curOffMsg * 32) + curBeat;
 					}
-					// If Type 0, use array to see how many messages per beat
+					// If Type 1, use array to see how many messages per beat
 					else{
 						if (messageCount[curBeat] == 10 || offMessageCount[curBeat] == 10){
 							screen.showError("There are more than 10 notes in a beat");
