@@ -7,6 +7,8 @@ extern uint32_t control; // Control mask for beats
 extern uint8_t channelEnabled[16]; // Channel enable flags
 extern uint8_t channels[16]; // Active channels
 extern int8_t beat; // Current beat index
+extern Mutex messagesMutex;
+extern Mutex controlMutex;
 
 MIDITimer::MIDITimer(Callback <void()> timeoutCallback) : USBMIDI(get_usb_phy(),0x0700,0x0101,1), _timeoutCallback(timeoutCallback){
     // Constructor initializes the timer state
@@ -78,9 +80,13 @@ void MIDITimer::timeout() {
 void MIDITimer::beatPlay() {
     uint16_t index;
     uint32_t beatMask = 0x80000000 >> beat;
+    messagesMutex.lock();
+    controlMutex.lock();
     if ((control & beatMask) == 0) {
+        controlMutex.unlock();
         return;
     }
+    controlMutex.unlock();
     for (int i = 0; i < 10; i++) {
         index = i * 32 + beat;
         if (offMessages[index][0] != 0 && _usb) {
@@ -97,6 +103,7 @@ void MIDITimer::beatPlay() {
             write(MIDIMessage::NoteOn(midiMessages[index][1], midiMessages[index][2], midiMessages[index][0] & 0xF));
         }
     }
+    messagesMutex.unlock();
 }
 
 void MIDITimer::allNotesOff() {

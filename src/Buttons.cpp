@@ -17,11 +17,19 @@ extern uint32_t beatsPerTone[1536]; // Beats per tone structure
 extern map<holdKey,uint8_t,CompareHoldKey> holded; // Holds the start and end of held notes
 extern uint8_t hold; // Hold state: 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
 extern uint32_t ledData[16];
+extern uint32_t lastLedData[16];
+extern Mutex messagesMutex;
+extern Mutex beatsPerToneMutex;
+extern Mutex beatMutex;
+extern Mutex ledDataMutex;
+extern Mutex controlMutex;
+extern Mutex holdedMutex;
 
 Buttons::Buttons(){
 	_holdTemporary = 0;
 	for (uint8_t i = 0; i < 16; i++) {
 		ledData[i] = 0x00000000;
+		lastLedData[i] = 0x00000000;
 	}
 }
 
@@ -35,7 +43,10 @@ void Buttons::press(uint8_t num){
 	uint8_t i = 0;
 	uint16_t bptIndex = (noteIndex * 16) + channel;
     holdKey pressKey = {num,uint8_t(channel),midiNote};
-
+    messagesMutex.lock();
+	beatsPerToneMutex.lock();
+	controlMutex.lock();
+	holdedMutex.lock();
 	// If active
 	if ((beatsPerTone[bptIndex] & beatMask) != 0){
 		channels[channel] --;
@@ -67,7 +78,12 @@ void Buttons::press(uint8_t num){
         }
 		i = 0;
 		while (i < 10){
-			if ((midiMessages[(i*32) + origNum][0] == 0) || (offMessages[(i*32) + num][0] == 0)) return;
+			if ((midiMessages[(i*32) + origNum][0] == 0) || (offMessages[(i*32) + num][0] == 0)){
+				messagesMutex.unlock();
+				beatsPerToneMutex.unlock();
+				controlMutex.unlock();
+				return;
+			} 
 			else i ++;
         }
         control &= ~beatMask;
@@ -148,20 +164,29 @@ void Buttons::press(uint8_t num){
             }
         }
     }
+	holdedMutex.unlock();
+	controlMutex.unlock();
+	beatsPerToneMutex.unlock();
+    messagesMutex.unlock();
     updateColors();
 }
 
 void Buttons::updateColors(){
 	uint16_t bptIndex = (note + (octave * 12)) * 16 + channel;
 	uint32_t beatMask = 0;
+	ledDataMutex.lock();
 	for (uint8_t i = 0; i < 16; i++) ledData[i] = 0x00000000;
 	//TODO: If in Play or Channel, use buttons to turn off/on channels, when turning off send AllNotesOff
 	for (uint8_t i = 0; i < 16; i++) {
+		if(ledData[i] != 0) continue;
 		uint8_t num = i;
 		if (mode32 && half)	num += 16;
 		beatMask = 0x80000000 >> num;
+		beatsPerToneMutex.lock();
 		if ((beatsPerTone[bptIndex] & beatMask) != 0) ledData[i] = BlueBtn;
+		beatsPerToneMutex.unlock();
 		holdKey key = {num, uint8_t(channel), uint8_t(note + octave * 12 + 24)};
+		holdedMutex.lock();
 		if (auto search = holded.find(key); search != holded.end()){
 			// If not in mode32, if num >= 16 or endBeat >= 16, continue
 			// If in mode32, if num >= 16 and half, if endBeat >= 16, continue
@@ -170,8 +195,10 @@ void Buttons::updateColors(){
 			bool n = num >= 16;
 			bool e = endBeat >= 16;
 			
-			if (((!mode32) && (n || e)) || (n && !half) || ((!n) && (!e) && mode32 && half)) continue;
-				
+			if (((!mode32) && (n || e)) || (n && !half) || ((!n) && (!e) && mode32 && half)) {
+				holdedMutex.unlock();
+				continue;
+			}	
 			if (e && half) endBeat -= 16;
 			else if (n && !e) endBeat = 15;
 			else if (e && !half) endBeat = 16;
@@ -194,10 +221,15 @@ void Buttons::updateColors(){
 				ledData[holded.at(iKey) - 16] = RedBtn;
 			}
 		}
+		holdedMutex.unlock();
 		//if (note+octave*12+24 != lastNote and lastNote != 0): //Agregar cuando se pasa de 16 a 32
 		//	listbtn[i].add_theme_stylebox_override("normal",greyStyle)
+		beatMutex.lock();
 		if (beat == num) ledData[i] = PurpleBtn; // Highlight current beat	
+		beatMutex.unlock();
+	    
 	}
+	ledDataMutex.unlock();
 }
 
 void Buttons::updateStructures(){

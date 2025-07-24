@@ -8,6 +8,7 @@ extern string filename;
 extern string renameFilename;
 extern uint8_t bank;
 extern Screen screen;
+extern Mutex messagesMutex;
 
 // VID_0703&PID_0104
 MIDIFile::MIDIFile() :
@@ -92,6 +93,7 @@ void MIDIFile::saveToFile(){
     uint8_t mtrkHeader[] = {0x00,0xFF,0x58,0x04,0x04,0x02,0x18,0x08,0x00,0xFF,0x51,0x03,uint8_t((tempoInt >> 16) & 0xFF),uint8_t((tempoInt >> 8) & 0xFF),uint8_t(tempoInt & 0xFF),0x00,0xFF,0x59,0x02, tone, mode};
     for (uint8_t b : mtrkHeader) _mtrk.push_back(b);
 	uint32_t curOff = 0;
+	messagesMutex.lock();
 	for (uint8_t j = 0; j < 32; j++){
 		bool flag = false;
 		for (uint8_t i = 0; i < 10; i++){
@@ -118,6 +120,8 @@ void MIDIFile::saveToFile(){
 		if (!flag) curOff += delta;
 		else curOff = delta;
     }
+	messagesMutex.unlock();
+
     const uint8_t end[] = {0x00,0xFF,0x2F,0x00};
 	for (uint8_t b : end) _mtrk.push_back(b);
     uint32_t chunkLen = _mtrk.size();
@@ -195,6 +199,7 @@ void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[32
 	// Read MTrk
 	while (!feof(file)){
 		buffer = get32(file);
+		if(feof(file)) break;
 		if (buffer == 0x4D54726B){
 			chunklen = get32(file);
 			uint32_t curOff = 0;
@@ -203,7 +208,8 @@ void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[32
 			uint8_t curOffMsg = 0;
 			uint16_t index = 0;
 			uint16_t indexOff = 0;
-			while (chunklen > 0){
+			bool running = true;
+			while (chunklen > 0 && running){
 				uint32_t result[2] = {0};
 				readDelta(file,result);
 				curOff = result[0];
@@ -232,6 +238,7 @@ void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[32
 						case 0x2F:{
 							buffer = fgetc(file);
 							chunklen -= 2;
+							running = false;
 							break;
 						}
 						case 0x51:{

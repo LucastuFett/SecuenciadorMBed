@@ -49,7 +49,7 @@ class Screen : public SPI_TFT_ILI9341 {
     vector <uint16_t> _possible[2];
     char _typing[18];
     string _files[12];
-    
+    uint16_t _bkgColors[12];
     
     enum state _lastState = MAIN;
     bool _menu = false;
@@ -57,12 +57,15 @@ class Screen : public SPI_TFT_ILI9341 {
     bool _typeBox = false;
     bool _memBanks = false;
     bool _lastHalf = false;
-    string _lastFiles[12];
     uint8_t _lastBank = 1;
     uint8_t _lastHold = 0;
     int8_t _lastVel = 127;
     int8_t _lastSelectedFile = 0;
-    int8_t _lastCurrentFile = 0;
+    int8_t _lastCurrentFile = -1;
+    int8_t _lastNote = 0;
+    int8_t _lastOctave = 3;
+    string _lastFiles[12];
+    uint16_t _lastBkgColors[12];
 
     // Cover Title
     void coverTitle();

@@ -21,6 +21,8 @@ extern string filename;
 extern string renameFilename;
 extern uint8_t bank;
 extern MIDIFile midiFile;
+extern Mutex beatsPerToneMutex;
+extern Mutex holdedMutex;
 
 Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char *name)
     : SPI_TFT_ILI9341(mosi, miso, sclk, cs, reset, dc, name) {
@@ -31,12 +33,14 @@ Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName res
 		_curPointer = false;
 		_upper = false;
 		_selectedFile = 0;
-		_currentFile = 0;
+		_currentFile = -1;
 		_curOctave = 2;
 
 		for (uint8_t i = 0; i < 18; i++) _typing[i] = ' ';
 		for (uint8_t i = 0; i < 12; i++) _files[i] = "";
 		for (uint8_t i = 0; i < 12; i++) _lastFiles[i] = "";
+		for (uint8_t i = 0; i < 12; i++) _bkgColors[i] = 0;
+		for (uint8_t i = 0; i < 12; i++) _lastBkgColors[i] = 0;
 
 		set_orientation(1);
 		background(Black);    // set background to Black
@@ -280,7 +284,7 @@ void Screen::updateMenuText(uint8_t menu) {
 			break;
 
 		case 4: // Velocity
-			fillcircle(280,120,15, Black);
+			fillrect(268,116,290,128, Black);
 			locate(268,116);
 			puts(to_string(velocity).c_str());
 			break;
@@ -423,6 +427,7 @@ void Screen::paintGrid() {
 			uint16_t yStart = 11 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
 			uint16_t xEnd = 102 + (gridBeat * 9);
 			uint16_t yEnd = 17 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+			beatsPerToneMutex.lock();
 			if((beatsPerTone[bptIndex] & beatMask) != 0) { 
 				if(count(_possible[0].begin(),_possible[0].end(),indNote)){
 					if(note == indNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
@@ -434,10 +439,11 @@ void Screen::paintGrid() {
 					else fillrect(xStart, yStart, xEnd, yEnd, Red);					
 				}
 			}else fillrect(xStart, yStart, xEnd, yEnd, Black);
-
+			beatsPerToneMutex.unlock();
 			gridNote--;
 		}
 	}
+	holdedMutex.lock();
 	for (const auto &i : holded ) {
         uint8_t endBeat = i.second;
 		uint8_t firstBeat = i.first.beatStart;
@@ -476,6 +482,7 @@ void Screen::paintGrid() {
 			}
 		}
     }
+	holdedMutex.unlock();
 }
 
 void Screen::updateHold() {
@@ -571,24 +578,16 @@ void Screen::showBanks(bool show){
 		_lastBank = bank;
 		set_font((unsigned char*) Arial12x12);
 		midiFile.getFiles(bank, _files);
-		uint16_t bkgColor = 0;
+		for (uint8_t i = 0; i < 12; i ++){
+			if (i == _selectedFile) _bkgColors[i] = Blue;
+			else _bkgColors[i] = DarkGrey;
+		}
 		for (uint8_t i = 0; i < 3; i ++){
 			for (uint8_t j = 0; j < 4; j ++){
-				if ((i*3 + j) == _selectedFile){
-					fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Blue);
-					bkgColor = Blue;
-				}
-				else{
-					fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, LightGrey);
-					bkgColor = LightGrey;
-				}
-				if ((i*3 + j) == _currentFile && mainState == PLAY) {
-					fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Purple);
-					bkgColor = Purple;
-				}
-				if (_files[i*3 + j] != ""){
-					background(bkgColor);
-					string name = _files[i * 3 + j];
+				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, _bkgColors[i*4 + j]);
+				if (_files[i*4 + j] != ""){
+					background(_bkgColors[i*4 + j]);
+					string name = _files[i * 4 + j];
 					locate(17 + j * 74, 43 + i * 54);
 					puts(name.substr(0, 7).c_str());
 					locate(17 + j * 74, 59 + i * 54);
@@ -601,6 +600,7 @@ void Screen::showBanks(bool show){
 			}
 		}
 		copy(begin(_files), end(_files), _lastFiles);
+		memcpy(_lastBkgColors,_bkgColors, sizeof(_bkgColors));
 		_lastSelectedFile = _selectedFile;
 		_lastCurrentFile = _currentFile;
 	} else if (!show && _memBanks) {
@@ -723,37 +723,31 @@ void Screen::updateBanks() {
 	}
 
 	midiFile.getFiles(bank, _files);
-	uint16_t bkgColor = 0;
-	static uint16_t lastBkgColor;
+	for (uint8_t i = 0; i < 12; i ++){
+		if (i == _currentFile) _bkgColors[i] = Purple;
+		else if (i == _selectedFile) _bkgColors[i] = Blue;
+		else _bkgColors[i] = DarkGrey;
+	}
 	for (uint8_t i = 0; i < 3; i ++){
 		for (uint8_t j = 0; j < 4; j ++){
-			if ((i*3 + j) == _selectedFile && _selectedFile != _lastSelectedFile){
-				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Blue);
-				bkgColor = Blue;
+			if (_bkgColors[i*4 + j] != _lastBkgColors[i*4 + j] || _files[i*4 + j] != _lastFiles[i*4 + j]){
+				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, _bkgColors[i*4 + j]);
+				if (_files[i*4 + j] != ""){
+					background(_bkgColors[i*4 + j]);
+					string name = _files[i * 4 + j];
+					locate(17 + j * 74, 43 + i * 54);
+					puts(name.substr(0, 7).c_str());
+					locate(17 + j * 74, 59 + i * 54);
+					puts(name.length() > 7 ? name.substr(7, 7).c_str() : "");
+					locate(30 + j * 74, 75 + i * 54);
+					puts(name.length() > 14 ? name.substr(14).c_str() : "");
+					background(Black);
+				}
 			}
-			else if(_selectedFile != _lastSelectedFile || _currentFile != _lastCurrentFile){
-				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, LightGrey);
-				bkgColor = LightGrey;
-			}
-			if ((i*3 + j) == _currentFile && mainState == PLAY && _currentFile != _lastCurrentFile) {
-				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, Purple);
-				bkgColor = Purple;
-			}
-			if((_files[(i*3 + j)] != _lastFiles[(i*3 + j)] && _files[(i*3 + j)] != "") || lastBkgColor != bkgColor){
-				background(bkgColor);
-				string name = _files[i * 3 + j];
-				locate(17 + j * 74, 43 + i * 54);
-				puts(name.substr(0, 7).c_str());
-				locate(17 + j * 74, 59 + i * 54);
-				puts(name.length() > 7 ? name.substr(7, 7).c_str() : "");
-				locate(30 + j * 74, 75 + i * 54);
-				puts(name.length() > 14 ? name.substr(14).c_str() : "");
-				background(Black);
-			}
-			lastBkgColor = bkgColor;
 		}
 	}
 	copy(begin(_files), end(_files), _lastFiles);
+	memcpy(_lastBkgColors,_bkgColors, sizeof(_bkgColors));
 	_lastSelectedFile = _selectedFile;
 	_lastCurrentFile = _currentFile;
 
@@ -765,9 +759,11 @@ void Screen::updateScreen() {
 		case MAIN:
 			showMenu(false);
 			showPiano(false);
+			showBanks(false);
 			break;
 		case PROG:
 			showTyping(false);
+			showBanks(false);
 			showMenu(true);
 			showPiano(true);
 			paintGrid();
@@ -786,6 +782,11 @@ void Screen::updateScreen() {
 			break;
 		case NOTE:
 			paintScales();
+			if(note != _lastNote || octave != _lastOctave){
+				paintGrid();
+				_lastNote = note;
+				_lastOctave = octave;
+			}
 			break;
 		case CHANNEL:
 			updateMenuText(1);
@@ -815,7 +816,10 @@ void Screen::updateScreen() {
 			showBanks(false);
 			showTyping(true);
 			updateMemoryText();
-			break;			
+			break;
+		case PLAY:
+			showBanks(true);		
+			updateBanks();	
 		default:
 			break;
 	}
@@ -830,5 +834,6 @@ void Screen::showError(string error){
 	locate(15,112);
 	puts(error.c_str());
 	set_font((unsigned char*) Arial12x12);
-
+	ThisThread::sleep_for(10s);
+	fillrect(9,109,311,141,Black);
 }

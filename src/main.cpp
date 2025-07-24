@@ -33,6 +33,7 @@ DigitalIn rows[5] ={
 Encoder encoder(p19, p17, PullUp); 
 DigitalIn exitSW(p28, PullDown);
 DigitalIn selectSW(p18, PullDown);
+//WS2812_PIO ledStrip(p10, 16);
 
 #else
 
@@ -123,6 +124,12 @@ string renameFilename = "";
 uint8_t bank = 1;
 uint8_t hold = 0; // 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
 map<holdKey,uint8_t, CompareHoldKey> holded;
+Mutex messagesMutex;
+Mutex ledDataMutex;
+Mutex beatMutex;
+Mutex beatsPerToneMutex;
+Mutex controlMutex;
+Mutex holdedMutex;
 
 // UI Variables
 
@@ -190,9 +197,11 @@ void selectFunc() {
                 midiFile.readFromFile(nextMessages,nextOffMessages,nextTempo,nextFilename,bank);
                 queue = true;
             } else {
+                messagesMutex.lock();
                 filename = screen.getFilename();
                 midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank);
                 buttons.updateStructures();
+                messagesMutex.unlock();
             }
             break;
         default:
@@ -227,9 +236,11 @@ void function1() {
             mainState = PROG;
             break;
         case SAVELOAD:
+            messagesMutex.lock();
             filename = screen.getFilename();
             midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank);
             buttons.updateStructures();
+            messagesMutex.unlock();
             mainState = PROG;
             break;
         case RENAME:
@@ -238,7 +249,10 @@ void function1() {
             break;
         case PLAY:
             if (!timer.isRunning()) {
+                beatMutex.lock();
                 beat --;
+                if (beat < 0) beat = 0;
+                beatMutex.unlock();
             } else {
                 timer.allNotesOff();
                 buttons.updateColors();
@@ -270,7 +284,10 @@ void function2() {
                 shift = false;
             } else {
                 if (!timer.isRunning()) {
+                    beatMutex.lock();
                     beat --;
+                    if(beat < 0) beat = 0;
+                    beatMutex.unlock();
                 } else {
                     timer.allNotesOff();
                     buttons.updateColors();
@@ -339,7 +356,9 @@ void function3() {
                 timer.stop();
                 timer.allNotesOff();
                 buttons.updateColors();
+                beatMutex.lock();
                 beat = 0;
+                beatMutex.unlock();
             }
             break;
         case NOTE:
@@ -423,7 +442,9 @@ void function4() {
             timer.stop();
             timer.allNotesOff();
             buttons.updateColors();
+            beatMutex.lock();
             beat = 0;
+            beatMutex.unlock();
             break;
         default:
             break;
@@ -555,6 +576,7 @@ void tempoChange() {
 }
 
 void timeout() {
+    beatMutex.lock();
     beat ++;
     if ((mode32 && beat == 32) || (!mode32 && beat == 16)) {
         beat = 0; // Reset beat after 32 or 16 beats
@@ -566,10 +588,12 @@ void timeout() {
             filename = nextFilename;
             timer.allNotesOff(); // Stop all notes
             buttons.updateStructures();
+            tempoChange();
             queue = false;
         }
     }
     timer.beatPlay(); // Send MIDI messages for the current beat
+    beatMutex.unlock();
     buttons.updateColors();
 }
 
@@ -588,6 +612,15 @@ void do_enc() {
 */
 //Thread encthread;
 
+void pollTimer(){
+    while(true){
+        timer.poll();
+        ThisThread::sleep_for(1ms);
+    }
+}
+
+Thread timerThread(osPriorityHigh);
+
 int main()
 {
     // Give the USB a moment to initialize and enumerate
@@ -602,7 +635,8 @@ int main()
     //encthread.start(do_enc);
     ThisThread::sleep_for(1s); // Wait for the TFT to initialize
     midiFile.init();
-    
+    timerThread.start(pollTimer);
+
     #if TESTING_MODES
 
     // Programming Test
@@ -652,7 +686,7 @@ int main()
     #endif
 
     while (true) {
-        timer.poll();
+        //timer.poll();
         readKeys();
         if (memcmp(keys, lastKeys, sizeof(keys)) != 0) {
             if (switches[1]){
@@ -714,12 +748,12 @@ int main()
             timer.initUSB();
         }
         /*
-        //ledDataMutex.lock();
+        ledDataMutex.lock();
         if (memcmp(ledData, lastLedData, sizeof(ledData)) != 0) {
             ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
             memcpy(lastLedData, ledData, sizeof(ledData)); // Update last LED data
         }
-        //ledDataMutex.unlock();
+        ledDataMutex.unlock();
         */
     }
 }

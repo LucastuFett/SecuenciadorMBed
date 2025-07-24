@@ -4,10 +4,10 @@
 
 
 // GRB Button Colors
-#define BlueBtn 0xb525e700
-#define PurpleBtn 0x5798f300
-#define RedBtn 0x00c30000
-#define OrangeBtn 0x80fc1f
+#define BlueBtn    0x2D093900
+#define PurpleBtn  0x15263C00
+#define RedBtn     0x00300000
+#define OrangeBtn  0x203F0700
 
 class Buttons {
     uint8_t _holdTemporary;
