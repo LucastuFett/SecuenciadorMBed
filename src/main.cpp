@@ -33,7 +33,7 @@ DigitalIn rows[5] ={
 Encoder encoder(p19, p17, PullUp); 
 DigitalIn exitSW(p28, PullDown);
 DigitalIn selectSW(p18, PullDown);
-//WS2812_PIO ledStrip(p10, 16);
+WS2812_PIO ledStrip(p10, 16);
 
 #else
 
@@ -130,6 +130,7 @@ Mutex beatMutex;
 Mutex beatsPerToneMutex;
 Mutex controlMutex;
 Mutex holdedMutex;
+//Mutex timerMutex;
 
 // UI Variables
 
@@ -614,7 +615,7 @@ void do_enc() {
 
 void pollTimer(){
     while(true){
-        timer.poll();
+        if(timer.isRunning()) timer.poll();
         ThisThread::sleep_for(1ms);
     }
 }
@@ -630,7 +631,7 @@ int main()
     // Set and Attach Trigger
     timer.setInterval(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1]));
     screen.init();
-    //ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
+    ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
     //ledThread.start(changeLED); // Start LED change thread
     //encthread.start(do_enc);
     ThisThread::sleep_for(1s); // Wait for the TFT to initialize
@@ -720,9 +721,10 @@ int main()
             if (switches[1] && !lastSwitches[1]) {
                 shiftTimer.reset();
                 shiftTimer.start();
+                shift = true;
             }
             if (!switches[1] && lastSwitches[1]){
-                if (shiftTimer.elapsed_time() < std::chrono::microseconds(1000000)) exitFunc();
+                if (shiftTimer.elapsed_time() < std::chrono::microseconds(1000000) && shift == true) exitFunc();
                 else shift = false;
                 shiftTimer.stop();
             }
@@ -737,7 +739,7 @@ int main()
 
         if (encoder.getRotaryEncoder()){
             int current=encoder.read();
-            timer.write(MIDIMessage::ControlChange(0,current & 0x7F));
+            //timer.write(MIDIMessage::ControlChange(0,current & 0x7F));
             if (current == 1) right();
             if (current == -1) left();
         }
@@ -747,13 +749,14 @@ int main()
             midiFile.deinitUSB();
             timer.initUSB();
         }
-        /*
+        ThisThread::sleep_for(1ms);
+        
         ledDataMutex.lock();
         if (memcmp(ledData, lastLedData, sizeof(ledData)) != 0) {
             ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
             memcpy(lastLedData, ledData, sizeof(ledData)); // Update last LED data
         }
         ledDataMutex.unlock();
-        */
+        
     }
 }

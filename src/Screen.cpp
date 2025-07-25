@@ -489,7 +489,7 @@ void Screen::updateHold() {
 	// Check if it should go below 17-32
 	switch (hold) {
 		case 0:
-			fillrect(0,188,47,192,Black);
+			fillrect(0,188,47,209,Black);
 			break;
 		case 1:
 			locate(3,195);

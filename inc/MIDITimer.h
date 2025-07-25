@@ -6,7 +6,7 @@
 
 
 class MIDITimer : public USBMIDI{
-    bool _running;
+    bool _playing;
     us_timestamp_t _interval;
     Timer _timer;
     Callback <void()> _timeoutCallback;

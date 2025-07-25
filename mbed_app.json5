@@ -4,6 +4,8 @@
     "*": {
       "platform.stdio-baud-rate": 115200,
       "platform.stdio-buffered-serial": 1,
+      "target.stdio_uart_tx": "p12",
+      "target.stdio_uart_rx": "p13",
       "target.console-usb": false,
       "target.console-uart": true,
       "sd.SPI_MOSI": "p11",

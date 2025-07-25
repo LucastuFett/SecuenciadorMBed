@@ -44,8 +44,8 @@ void Buttons::press(uint8_t num){
 	uint16_t bptIndex = (noteIndex * 16) + channel;
     holdKey pressKey = {num,uint8_t(channel),midiNote};
     messagesMutex.lock();
-	beatsPerToneMutex.lock();
 	controlMutex.lock();
+	beatsPerToneMutex.lock();
 	holdedMutex.lock();
 	// If active
 	if ((beatsPerTone[bptIndex] & beatMask) != 0){
@@ -72,16 +72,18 @@ void Buttons::press(uint8_t num){
                     }
                 }
 				beatsPerTone[bptIndex] &= ~beatMask;
-				updateColors();
+				//updateColors();
 				break;
             } else i ++;
         }
 		i = 0;
 		while (i < 10){
 			if ((midiMessages[(i*32) + origNum][0] == 0) || (offMessages[(i*32) + num][0] == 0)){
-				messagesMutex.unlock();
+				holdedMutex.unlock();
 				beatsPerToneMutex.unlock();
 				controlMutex.unlock();
+				messagesMutex.unlock();
+				updateColors();
 				return;
 			} 
 			else i ++;
@@ -165,9 +167,9 @@ void Buttons::press(uint8_t num){
         }
     }
 	holdedMutex.unlock();
-	controlMutex.unlock();
 	beatsPerToneMutex.unlock();
-    messagesMutex.unlock();
+	controlMutex.unlock();
+	messagesMutex.unlock();
     updateColors();
 }
 

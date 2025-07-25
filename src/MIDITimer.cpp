@@ -10,9 +10,12 @@ extern int8_t beat; // Current beat index
 extern Mutex messagesMutex;
 extern Mutex controlMutex;
 
+Mutex intervalMutex;
+Mutex playingMutex;
+
 MIDITimer::MIDITimer(Callback <void()> timeoutCallback) : USBMIDI(get_usb_phy(),0x0700,0x0101,1), _timeoutCallback(timeoutCallback){
     // Constructor initializes the timer state
-    _running = false;
+    _playing = false;
     _interval = 0;
     _usb = false;
 }
@@ -35,24 +38,32 @@ bool MIDITimer::getUSB(){
 }
 
 void MIDITimer::start(us_timestamp_t interval) {
+    intervalMutex.lock();
     _interval = interval;
-    _running = true;
+    intervalMutex.unlock();
+    playingMutex.lock();
+    _playing = true;
+    playingMutex.unlock();
     _timer.start();
 }
 
 void MIDITimer::start() {
-    _running = true;
+    playingMutex.lock();
+    _playing = true;
+    playingMutex.unlock();
     _timer.start();
 }
 
 void MIDITimer::stop() {
-    _running = false;
+    playingMutex.lock();
+    _playing = false;
+    playingMutex.unlock();
     _timer.stop();
     _timer.reset();
 }
 
 void MIDITimer::playPause() {
-    if (_running) {
+    if (_playing) {
         stop();
     } else {
         start();
@@ -60,17 +71,18 @@ void MIDITimer::playPause() {
 }
 
 bool MIDITimer::isRunning() const {
-    return _running;
+    return _playing;
 }
 
 void MIDITimer::poll() {
-    if (_running) {
-        us_timestamp_t now = _timer.elapsed_time().count();
-        if (now >= _interval) {
-            timeout();
-            _timer.reset();
-        }
+    us_timestamp_t now = _timer.elapsed_time().count();
+    intervalMutex.lock();
+    if (now >= _interval) {
+        timeout();
+        _timer.reset();
     }
+    intervalMutex.unlock();
+    
 }
 
 void MIDITimer::timeout() {
@@ -84,6 +96,7 @@ void MIDITimer::beatPlay() {
     controlMutex.lock();
     if ((control & beatMask) == 0) {
         controlMutex.unlock();
+        messagesMutex.unlock();
         return;
     }
     controlMutex.unlock();
@@ -115,8 +128,10 @@ void MIDITimer::allNotesOff() {
 }
 
 void MIDITimer::setInterval(us_timestamp_t interval){
+    intervalMutex.lock();
     _interval = interval;
-    if (_running) {
+    intervalMutex.unlock();
+    if (_playing) {
         _timer.start();
     }
 }
