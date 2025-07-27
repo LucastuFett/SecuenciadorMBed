@@ -486,17 +486,16 @@ void Screen::paintGrid() {
 }
 
 void Screen::updateHold() {
-	// Check if it should go below 17-32
 	switch (hold) {
 		case 0:
-			fillrect(0,188,47,209,Black);
+			fillrect(245,190,320,210,Black);
 			break;
 		case 1:
-			locate(3,195);
+			locate(245,195);
 			puts("1st Value");
 			break;
 		case 2:
-			locate(3,195);
+			locate(245,195);
 			puts("2nd Value");
 			break;			
 	}
@@ -782,16 +781,14 @@ void Screen::updateScreen() {
 			break;
 		case NOTE:
 			paintScales();
-			if(note != _lastNote || octave != _lastOctave){
-				paintGrid();
-				_lastNote = note;
-				_lastOctave = octave;
-			}
+			paintGrid();
 			break;
 		case CHANNEL:
 			updateMenuText(1);
+			paintGrid();
 			break;
 		case TEMPO:
+			// When canceling, does not update
 			updateMenuText(2);
 			break;
 		case SCALE:

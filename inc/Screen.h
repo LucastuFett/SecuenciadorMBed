@@ -11,7 +11,7 @@ const string labels[10][8] = {{"Program", "Play", "Launch", "DAW","","USBMIDI","
 				{"Accept","Bank -","Bank +","Cancel","","Rename","Delete",""},
 				{"Save","Shift","Backspace","Cancel","","Special","Space",""},
 				{"Accept","","","Cancel","","","",""},
-				{"Accept","Internal","External","Cancel","","","",""},
+				{"Accept","Internal","External","Cancel","","Half","Double",""},
 				{"Accept","Mode -","Mode +","Cancel","","","",""},
 				{"Play/Pause","Bank -","Bank +","Stop","","","",""}};
 
@@ -62,8 +62,6 @@ class Screen : public SPI_TFT_ILI9341 {
     int8_t _lastVel = 127;
     int8_t _lastSelectedFile = 0;
     int8_t _lastCurrentFile = -1;
-    int8_t _lastNote = 0;
-    int8_t _lastOctave = 3;
     string _lastFiles[12];
     uint16_t _lastBkgColors[12];
 

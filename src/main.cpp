@@ -130,7 +130,7 @@ Mutex beatMutex;
 Mutex beatsPerToneMutex;
 Mutex controlMutex;
 Mutex holdedMutex;
-//Mutex timerMutex;
+Mutex channelEnabledMutex;
 
 // UI Variables
 
@@ -151,6 +151,7 @@ uint8_t nextOffMessages[320][3] = {{0}};
 int16_t nextTempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
 string nextFilename = "";
 bool queue = false;
+bool channelEnabled[16] = {true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true};
 
 // Methods
 
@@ -305,7 +306,14 @@ void function2() {
             if (mode < 0) mode = SCALE_COUNT - 1; // Wrap around to last scale
             break;
         case TEMPO:
-            tempo[0] = 0;
+            if (shift){
+                if (!tempo[0]) {
+                    tempo[1] /= 2;
+                    if (tempo[1] < 60) tempo[1] = 60; // Prevent lower tempo
+                }
+                shift = false;
+            }
+            else tempo[0] = 0;
             break;
         case MEMORY:
         case RENAME:
@@ -371,7 +379,13 @@ void function3() {
             if (mode == SCALE_COUNT) mode = 0; // Wrap around to first scale
             break;
         case TEMPO:
-            tempo[0] = 1;
+            if (shift){
+                if (!tempo[0]) {
+                    tempo[1] *= 2;
+                    if (tempo[1] > 360) tempo[1] = 360; // Prevent upper tempo
+                }
+                shift = false;
+            } else tempo[0] = 1;
             break;
         case MEMORY:
         case RENAME:
@@ -708,7 +722,9 @@ int main()
             for(int i = 1; i < 5; i++) {
                 for(int j = 0; j < 4; j++) {
                     if (keys[i][j] && !lastKeys[i][j]) { // Key pressed
-                        buttons.press((i-1) * 4 + j);
+                        uint8_t num = (i-1) * 4 + j;
+                        buttons.press(num);
+                        if(!channelEnabled[num]) timer.allNotesOff(num);
                         screen.updateScreen();
                     }
                 }

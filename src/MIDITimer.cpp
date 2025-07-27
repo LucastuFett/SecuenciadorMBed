@@ -4,11 +4,13 @@
 extern uint8_t midiMessages[320][3]; // MIDI messages for each beat
 extern uint8_t offMessages[320][3]; // Off messages for each beat
 extern uint32_t control; // Control mask for beats
-extern uint8_t channelEnabled[16]; // Channel enable flags
 extern uint8_t channels[16]; // Active channels
 extern int8_t beat; // Current beat index
+extern bool channelEnabled[16];
+
 extern Mutex messagesMutex;
 extern Mutex controlMutex;
+extern Mutex channelEnabledMutex;
 
 Mutex intervalMutex;
 Mutex playingMutex;
@@ -103,16 +105,24 @@ void MIDITimer::beatPlay() {
     for (int i = 0; i < 10; i++) {
         index = i * 32 + beat;
         if (offMessages[index][0] != 0 && _usb) {
+            channelEnabledMutex.lock();
+            if (channelEnabled[offMessages[index][0] & 0xF] == false) {
+                channelEnabledMutex.unlock();
+                continue; // Skip if channel is disabled
+            }
+            channelEnabledMutex.unlock();
             write(MIDIMessage::NoteOn(offMessages[index][1], offMessages[index][2], offMessages[index][0] & 0xF));
         }
     }
     for (int i = 0; i < 10; i++) {
         index = i * 32 + beat;
         if (midiMessages[index][0] != 0 && _usb) {
-            /*
-            if (channelEnabled[midiMessages[index][0] & 0xF] == 0) {
+            channelEnabledMutex.lock();
+            if (channelEnabled[midiMessages[index][0] & 0xF] == false) {
+                channelEnabledMutex.unlock();
                 continue; // Skip if channel is disabled
-            }*/
+            }
+            channelEnabledMutex.unlock();
             write(MIDIMessage::NoteOn(midiMessages[index][1], midiMessages[index][2], midiMessages[index][0] & 0xF));
         }
     }
@@ -125,6 +135,10 @@ void MIDITimer::allNotesOff() {
             write(MIDIMessage::AllNotesOff(i));
         }
     }
+}
+
+void MIDITimer::allNotesOff(uint8_t channel) {
+    write(MIDIMessage::AllNotesOff(channel));
 }
 
 void MIDITimer::setInterval(us_timestamp_t interval){

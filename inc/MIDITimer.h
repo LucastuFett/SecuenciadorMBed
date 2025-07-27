@@ -60,6 +60,9 @@ public:
     // Send an All Notes Off message for Channels with active notes
     void allNotesOff();
 
+    // Send an All Notes Off for just one channel
+    void allNotesOff(uint8_t channel);
+
     // Set Saved Interval
     void setInterval(us_timestamp_t interval);
     
