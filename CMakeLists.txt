@@ -74,21 +74,21 @@ add_subdirectory(mbed-os)
 ### add executable (necessary everytime)
 # This will compile an elf file named the same as the project with the given source files.
 add_executable(${PROJECT_NAME} 
-    # src/main.cpp 
-    src/SDTest.cpp
-    # src/MIDITimer.cpp
-    # src/Buttons.cpp
-    # src/Screen.cpp
-    # src/MIDIFile.cpp
-    # drivers/src/WS2812.cpp
-    # drivers/src/Encoder.cpp
-    # drivers/src/GraphicsDisplay.cpp
-    # drivers/src/SPI_TFT_ILI9341.cpp
-    # drivers/src/TextDisplay.cpp
-    # drivers/src/TestSDBlockDevice.cpp
+    src/main.cpp 
+    # src/SDTest.cpp
+    src/MIDITimer.cpp
+    src/Buttons.cpp
+    src/Screen.cpp
+    src/MIDIFile.cpp
+    drivers/src/WS2812.cpp
+    drivers/src/Encoder.cpp
+    drivers/src/GraphicsDisplay.cpp
+    drivers/src/SPI_TFT_ILI9341.cpp
+    drivers/src/TextDisplay.cpp
+    drivers/src/PicoSDBlockDevice.cpp
     drivers/src/spi_api_fix.c
-    # mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
-    # mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
+    mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
+    mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
 )
 
 target_include_directories(${PROJECT_NAME}

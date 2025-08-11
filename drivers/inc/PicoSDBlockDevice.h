@@ -1,4 +1,25 @@
-#pragma once
+/* mbed Microcontroller Library
+ * Copyright (c) 2006-2013 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef MBED_PICOSD_BLOCK_DEVICE_H
+#define MBED_PICOSD_BLOCK_DEVICE_H
+
+/* If the target has no SPI support, then SD Card is not supported. */
+#if DEVICE_SPI
 
 #include "blockdevice/BlockDevice.h"
 #include "drivers/SPI.h"
@@ -8,76 +29,6 @@
 #include "platform/platform.h"
 #include "rtos/Mutex.h"
 #include "hal/static_pinmap.h"
-
-// command definitions
-#define CMD0                0
-#define CMD0_ARG            0x00000000
-#define CMD0_CRC            0x94
-#define CMD8                8
-#define CMD8_ARG            0x0000001AA
-#define CMD8_CRC            0x86
-#define CMD9                9
-#define CMD9_ARG            0x00000000
-#define CMD9_CRC            0x00
-#define CMD10               9
-#define CMD10_ARG           0x00000000
-#define CMD10_CRC           0x00
-#define CMD12               12
-#define CMD12_ARG           0x00000000
-#define CMD12_CRC           0x00
-#define CMD12_STOP_TRANSMISSION 12
-#define CMD13               13
-#define CMD13_ARG           0x00000000
-#define CMD13_CRC           0x00
-#define ACMD13            13
-
-#define CMD17               17
-#define CMD17_CRC           0x00
-#define CMD24               24
-#define CMD24_CRC           0x00
-#define CMD38               38
-#define CMD38_ARG           0x00000000
-#define CMD55               55
-#define CMD55_ARG           0x00000000
-#define CMD55_CRC           0x00
-#define CMD58               58
-#define CMD58_ARG           0x00000000
-#define CMD58_CRC           0x00
-#define ACMD41              41
-#define ACMD41_ARG          0x40000000
-#define ACMD41_CRC          0x00
-
-#define SD_IN_IDLE_STATE    0x01
-#define SD_READY            0x00
-#define SD_R1_NO_ERROR(X)   X < 0x02
-
-#define R3_BYTES            4
-#define R7_BYTES            4
-
-#define CMD0_MAX_ATTEMPTS       255
-#define CMD55_MAX_ATTEMPTS      255
-#define SD_ERROR                1
-#define SD_SUCCESS              0
-#define SD_MAX_READ_ATTEMPTS    1251
-#define SD_READ_START_TOKEN     0xFE
-#define SD_INIT_CYCLES          80
-
-#define SD_START_TOKEN          0xFE
-#define SD_ERROR_TOKEN          0x00
-
-#define SD_DATA_ACCEPTED        0x05
-#define SD_DATA_REJECTED_CRC    0x0B
-#define SD_DATA_REJECTED_WRITE  0x0D
-
-#define SD_BLOCK_LEN            512
-
-#ifndef MBED_SD_BLOCK_DEVICE_H
-#define MBED_SD_BLOCK_DEVICE_H
-
-/* If the target has no SPI support, then SD Card is not supported. */
-#if DEVICE_SPI
-
-
 
 #ifndef MBED_CONF_SD_SPI_MOSI
 #define MBED_CONF_SD_SPI_MOSI NC
@@ -101,17 +52,17 @@
 #define MBED_CONF_SD_CRC_ENABLED 0
 #endif
 
-/** TestSDBlockDevice class
+/** PicoSDBlockDevice class
  *
  * Access an SD Card using SPI bus
  */
-class TestSDBlockDevice : public mbed::BlockDevice {
+class PicoSDBlockDevice : public mbed::BlockDevice {
 
     // Only HC block size is supported. Making this a static constant reduces code size.
     static constexpr uint32_t _block_size = 512; /*!< Block size supported for SDHC card is 512 bytes  */
 
 public:
-    /** Creates an TestSDBlockDevice on a SPI bus specified by pins (using dynamic pin-map)
+    /** Creates an PicoSDBlockDevice on a SPI bus specified by pins (using dynamic pin-map)
      *
      *  @param mosi     SPI master out, slave in pin
      *  @param miso     SPI master in, slave out pin
@@ -120,26 +71,26 @@ public:
      *  @param hz       Clock speed of the SPI bus (defaults to 1MHz)
      *  @param crc_on   Enable cyclic redundancy check (defaults to disabled)
      */
-    TestSDBlockDevice(PinName mosi = MBED_CONF_SD_SPI_MOSI,
+    PicoSDBlockDevice(PinName mosi = MBED_CONF_SD_SPI_MOSI,
                   PinName miso = MBED_CONF_SD_SPI_MISO,
                   PinName sclk = MBED_CONF_SD_SPI_CLK,
                   PinName cs = MBED_CONF_SD_SPI_CS,
                   uint64_t hz = MBED_CONF_SD_TRX_FREQUENCY,
                   bool crc_on = MBED_CONF_SD_CRC_ENABLED);
 
-    /** Creates an TestSDBlockDevice on a SPI bus specified by pins (using static pin-map)
+    /** Creates an PicoSDBlockDevice on a SPI bus specified by pins (using static pin-map)
      *
      *  @param spi_pinmap Static SPI pin-map
      *  @param cs         Chip select pin (can be any GPIO)
      *  @param hz         Clock speed of the SPI bus (defaults to 1MHz)
      *  @param crc_on     Enable cyclic redundancy check (defaults to disabled)
      */
-    TestSDBlockDevice(const spi_pinmap_t &spi_pinmap,
+    PicoSDBlockDevice(const spi_pinmap_t &spi_pinmap,
                   PinName cs = MBED_CONF_SD_SPI_CS,
                   uint64_t hz = MBED_CONF_SD_TRX_FREQUENCY,
                   bool crc_on = MBED_CONF_SD_CRC_ENABLED);
 
-    virtual ~TestSDBlockDevice();
+    virtual ~PicoSDBlockDevice();
 
     /** Initialize a block device
      *
@@ -262,13 +213,49 @@ public:
     virtual const char *get_type() const;
 
 private:
-    
-    int _cmd(uint8_t cmd, uint32_t arg, bool isAcmd = 0, uint32_t *resp = NULL);
+    /* Commands : Listed below are commands supported
+     * in SPI mode for SD card : Only Mandatory ones
+     */
+    enum cmdSupported {
+        CMD_NOT_SUPPORTED = -1,             /**< Command not supported error */
+        CMD0_GO_IDLE_STATE = 0,             /**< Resets the SD Memory Card */
+        CMD1_SEND_OP_COND = 1,              /**< Sends host capacity support */
+        CMD6_SWITCH_FUNC = 6,               /**< Check and Switches card function */
+        CMD8_SEND_IF_COND = 8,              /**< Supply voltage info */
+        CMD9_SEND_CSD = 9,                  /**< Provides Card Specific data */
+        CMD10_SEND_CID = 10,                /**< Provides Card Identification */
+        CMD12_STOP_TRANSMISSION = 12,       /**< Forces the card to stop transmission */
+        CMD13_SEND_STATUS = 13,             /**< Card responds with status */
+        CMD16_SET_BLOCKLEN = 16,            /**< Length for SC card is set */
+        CMD17_READ_SINGLE_BLOCK = 17,       /**< Read single block of data */
+        CMD18_READ_MULTIPLE_BLOCK = 18,     /**< Card transfers data blocks to host until interrupted
+                                                 by a STOP_TRANSMISSION command */
+        CMD24_WRITE_BLOCK = 24,             /**< Write single block of data */
+        CMD25_WRITE_MULTIPLE_BLOCK = 25,    /**< Continuously writes blocks of data until
+                                                 'Stop Tran' token is sent */
+        CMD27_PROGRAM_CSD = 27,             /**< Programming bits of CSD */
+        CMD32_ERASE_WR_BLK_START_ADDR = 32, /**< Sets the address of the first write
+                                                 block to be erased. */
+        CMD33_ERASE_WR_BLK_END_ADDR = 33,   /**< Sets the address of the last write
+                                                 block of the continuous range to be erased.*/
+        CMD38_ERASE = 38,                   /**< Erases all previously selected write blocks */
+        CMD55_APP_CMD = 55,                 /**< Extend to Applications specific commands */
+        CMD56_GEN_CMD = 56,                 /**< General Purpose Command */
+        CMD58_READ_OCR = 58,                /**< Read OCR register of card */
+        CMD59_CRC_ON_OFF = 59,              /**< Turns the CRC option on or off*/
+        // App Commands
+        ACMD6_SET_BUS_WIDTH = 6,
+        ACMD13_SD_STATUS = 13,
+        ACMD22_SEND_NUM_WR_BLOCKS = 22,
+        ACMD23_SET_WR_BLK_ERASE_COUNT = 23,
+        ACMD41_SD_SEND_OP_COND = 41,
+        ACMD42_SET_CLR_CARD_DETECT = 42,
+        ACMD51_SEND_SCR = 51,
+    };
+
+    uint8_t _card_type;
+    int _cmd(PicoSDBlockDevice::cmdSupported cmd, uint32_t arg, bool isAcmd = 0, uint32_t *resp = NULL);
     int _cmd8();
-    uint8_t _SDSPI_goIdle();
-    //void _SD_sendIfCond(uint8_t *res);
-    uint8_t _SD_sendApp();
-    uint8_t _SD_sendOpCond();
 
     /*  Move the SD Card into the SPI Mode idle state
      *
@@ -293,11 +280,10 @@ private:
     uint32_t _init_sck;             /**< Initial SPI frequency */
     uint32_t _transfer_sck;         /**< SPI frequency during data transfer/after initialization */
     mbed::SPI _spi;                       /**< SPI Class object */
-    mbed::DigitalOut _cs;                /**< Chip Select pin */
 
     /* SPI initialization function */
     void _spi_init();
-    uint8_t _cmd_spi(uint8_t cmd, uint32_t arg);
+    uint8_t _cmd_spi(PicoSDBlockDevice::cmdSupported cmd, uint32_t arg);
     void _spi_wait(uint8_t count);
 
     bool _wait_token(uint8_t token);        /**< Wait for token */

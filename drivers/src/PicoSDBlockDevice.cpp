@@ -1,8 +1,145 @@
+/* mbed Microcontroller Library
+ * Copyright (c) 2006-2013 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* Introduction
+ * ------------
+ * SD and MMC cards support a number of interfaces, but common to them all
+ * is one based on SPI. Since we already have the mbed SPI Interface, it will
+ * be used for SD cards.
+ *
+ * The main reference I'm using is Chapter 7, "SPI Mode" of:
+ *  http://www.sdcard.org/developers/tech/sdcard/pls/Simplified_Physical_Layer_Spec.pdf
+ *
+ * SPI Startup
+ * -----------
+ * The SD card powers up in SD mode. The start-up procedure is complicated
+ * by the requirement to support older SDCards in a backwards compatible
+ * way with the new higher capacity variants SDHC and SDHC.
+ *
+ * The following figures from the specification with associated text describe
+ * the SPI mode initialisation process:
+ *  - Figure 7-1: SD Memory Card State Diagram (SPI mode)
+ *  - Figure 7-2: SPI Mode Initialization Flow
+ *
+ * Firstly, a low initial clock should be selected (in the range of 100-
+ * 400kHZ). After initialisation has been completed, the switch to a
+ * higher clock speed can be made (e.g. 1MHz). Newer cards will support
+ * higher speeds than the default _transfer_sck defined here.
+ *
+ * Next, note the following from the SDCard specification (note to
+ * Figure 7-1):
+ *
+ *  In any of the cases CMD1 is not recommended because it may be difficult for the host
+ *  to distinguish between MultiMediaCard and SD Memory Card
+ *
+ * Hence CMD1 is not used for the initialisation sequence.
+ *
+ * The SPI interface mode is selected by asserting CS low and sending the
+ * reset command (CMD0). The card will respond with a (R1) response.
+ * In practice many cards initially respond with 0xff or invalid data
+ * which is ignored. Data is read until a valid response is received
+ * or the number of re-reads has exceeded a maximim count. If a valid
+ * response is not received then the CMD0 can be retried. This
+ * has been found to successfully initialise cards where the SPI master
+ * (on MCU) has been reset but the SDCard has not, so the first
+ * CMD0 may be lost.
+ *
+ * CMD8 is optionally sent to determine the voltage range supported, and
+ * indirectly determine whether it is a version 1.x SD/non-SD card or
+ * version 2.x. I'll just ignore this for now.
+ *
+ * ACMD41 is repeatedly issued to initialise the card, until "in idle"
+ * (bit 0) of the R1 response goes to '0', indicating it is initialised.
+ *
+ * You should also indicate whether the host supports High Capicity cards,
+ * and check whether the card is high capacity - i'll also ignore this
+ *
+ * SPI Protocol
+ * ------------
+ * The SD SPI protocol is based on transactions made up of 8-bit words, with
+ * the host starting every bus transaction by asserting the CS signal low. The
+ * card always responds to commands, data blocks and errors.
+ *
+ * The protocol supports a CRC, but by default it is off (except for the
+ * first reset CMD0, where the CRC can just be pre-calculated, and CMD8)
+ * I'll leave the CRC off I think!
+ *
+ * Standard capacity cards have variable data block sizes, whereas High
+ * Capacity cards fix the size of data block to 512 bytes. I'll therefore
+ * just always use the Standard Capacity cards with a block size of 512 bytes.
+ * This is set with CMD16.
+ *
+ * You can read and write single blocks (CMD17, CMD25) or multiple blocks
+ * (CMD18, CMD25). For simplicity, I'll just use single block accesses. When
+ * the card gets a read command, it responds with a response token, and then
+ * a data token or an error.
+ *
+ * SPI Command Format
+ * ------------------
+ * Commands are 6-bytes long, containing the command, 32-bit argument, and CRC.
+ *
+ * +---------------+------------+------------+-----------+----------+--------------+
+ * | 01 | cmd[5:0] | arg[31:24] | arg[23:16] | arg[15:8] | arg[7:0] | crc[6:0] | 1 |
+ * +---------------+------------+------------+-----------+----------+--------------+
+ *
+ * As I'm not using CRC, I can fix that byte to what is needed for CMD0 (0x95)
+ *
+ * All Application Specific commands shall be preceded with APP_CMD (CMD55).
+ *
+ * SPI Response Format
+ * -------------------
+ * The main response format (R1) is a status byte (normally zero). Key flags:
+ *  idle - 1 if the card is in an idle state/initialising
+ *  cmd  - 1 if an illegal command code was detected
+ *
+ *    +-------------------------------------------------+
+ * R1 | 0 | arg | addr | seq | crc | cmd | erase | idle |
+ *    +-------------------------------------------------+
+ *
+ * R1b is the same, except it is followed by a busy signal (zeros) until
+ * the first non-zero byte when it is ready again.
+ *
+ * Data Response Token
+ * -------------------
+ * Every data block written to the card is acknowledged by a byte
+ * response token
+ *
+ * +----------------------+
+ * | xxx | 0 | status | 1 |
+ * +----------------------+
+ *              010 - OK!
+ *              101 - CRC Error
+ *              110 - Write Error
+ *
+ * Single Block Read and Write
+ * ---------------------------
+ *
+ * Block transfers have a byte header, followed by the data, followed
+ * by a 16-bit CRC. In our case, the data will always be 512 bytes.
+ *
+ * +------+---------+---------+- -  - -+---------+-----------+----------+
+ * | 0xFE | data[0] | data[1] |        | data[n] | crc[15:8] | crc[7:0] |
+ * +------+---------+---------+- -  - -+---------+-----------+----------+
+ */
 
 /* If the target has no SPI support then SDCard is not supported */
 #if DEVICE_SPI
 
-#include "TestSDBlockDevice.h"
+#include "PicoSDBlockDevice.h"
 #include "rtos/ThisThread.h"
 #include "platform/mbed_debug.h"
 #ifndef __STDC_FORMAT_MACROS
@@ -13,7 +150,6 @@
 
 using namespace mbed;
 using namespace std::chrono;
-using namespace rtos;
 
 #ifndef MBED_CONF_SD_CMD_TIMEOUT
 #define MBED_CONF_SD_CMD_TIMEOUT                 5000   /*!< Timeout in ms for response */
@@ -112,15 +248,17 @@ using namespace rtos;
 #define SPI_READ_ERROR_OFR       (0x1 << 3)  /*!< Out of Range */
 
 #if MBED_CONF_SD_CRC_ENABLED
-TestSDBlockDevice::TestSDBlockDevice(PinName mosi, PinName miso, PinName sclk, PinName cs, uint64_t hz, bool crc_on)
+PicoSDBlockDevice::PicoSDBlockDevice(PinName mosi, PinName miso, PinName sclk, PinName cs, uint64_t hz, bool crc_on)
     : _sectors(0), _spi(mosi, miso, sclk, cs, use_gpio_ssel), _is_initialized(0),
       _init_ref_count(0), _crc_on(crc_on)
 #else
-TestSDBlockDevice::TestSDBlockDevice(PinName mosi, PinName miso, PinName sclk, PinName cs, uint64_t hz, bool crc_on)
-    : _sectors(0), _spi(mosi, miso, sclk, NC), _is_initialized(0),
-      _init_ref_count(0), _cs(cs)
+PicoSDBlockDevice::PicoSDBlockDevice(PinName mosi, PinName miso, PinName sclk, PinName cs, uint64_t hz, bool crc_on)
+    : _sectors(0), _spi(mosi, miso, sclk, cs, use_gpio_ssel), _is_initialized(0),
+      _init_ref_count(0)
 #endif
 {
+    _card_type = SDCARD_NONE;
+
     // Set default to 100kHz for initialisation and 1MHz for data transfer
     static_assert(((MBED_CONF_SD_INIT_FREQUENCY >= 100000) && (MBED_CONF_SD_INIT_FREQUENCY <= 400000)),
                   "Initialization frequency should be between 100KHz to 400KHz");
@@ -131,15 +269,17 @@ TestSDBlockDevice::TestSDBlockDevice(PinName mosi, PinName miso, PinName sclk, P
 }
 
 #if MBED_CONF_SD_CRC_ENABLED
-TestSDBlockDevice::TestSDBlockDevice(const spi_pinmap_t &spi_pinmap, PinName cs, uint64_t hz, bool crc_on)
+PicoSDBlockDevice::PicoSDBlockDevice(const spi_pinmap_t &spi_pinmap, PinName cs, uint64_t hz, bool crc_on)
     : _sectors(0), _spi(spi_pinmap, cs), _is_initialized(0),
       _init_ref_count(0), _crc_on(crc_on)
 #else
-TestSDBlockDevice::TestSDBlockDevice(const spi_pinmap_t &spi_pinmap, PinName cs, uint64_t hz, bool crc_on)
-    : _sectors(0), _spi(spi_pinmap, NC), _is_initialized(0),
-      _init_ref_count(0), _cs(cs)
+PicoSDBlockDevice::PicoSDBlockDevice(const spi_pinmap_t &spi_pinmap, PinName cs, uint64_t hz, bool crc_on)
+    : _sectors(0), _spi(spi_pinmap, cs), _is_initialized(0),
+      _init_ref_count(0)
 #endif
 {
+    _card_type = SDCARD_NONE;
+
     // Set default to 100kHz for initialisation and 1MHz for data transfer
     static_assert(((MBED_CONF_SD_INIT_FREQUENCY >= 100000) && (MBED_CONF_SD_INIT_FREQUENCY <= 400000)),
                   "Initialization frequency should be between 100KHz to 400KHz");
@@ -149,67 +289,109 @@ TestSDBlockDevice::TestSDBlockDevice(const spi_pinmap_t &spi_pinmap, PinName cs,
     _erase_size = _block_size;
 }
 
-TestSDBlockDevice::~TestSDBlockDevice()
+PicoSDBlockDevice::~PicoSDBlockDevice()
 {
     if (_is_initialized) {
         deinit();
     }
 }
 
-int TestSDBlockDevice::_initialise_card()
+int PicoSDBlockDevice::_initialise_card()
 {
-    uint8_t res[5], cmdAttempts = 0;
+    // Detail debugging is for commands
+    _dbg = SD_DBG ? SD_CMD_TRACE : 0;
     int32_t status = BD_ERROR_OK;
+    uint32_t response, arg;
 
     // Initialize the SPI interface: Card by default is in SD mode
     _spi_init();
-    
-// command card to idle
-    while((res[0] = _SDSPI_goIdle()) != 0x01)
-    {
-        cmdAttempts++;
-        //printf("Idle Attempts: %i\n",cmdAttempts);
-        if(cmdAttempts > 10) return SD_ERROR;
+
+    // The card is transitioned from SDCard mode to SPI mode by sending the CMD0 + CS Asserted("0")
+    if (_go_idle_state() != R1_IDLE_STATE) {
+        debug_if(SD_DBG, "No disk, or could not put SD card in to SPI idle state\n");
+        return SD_BLOCK_DEVICE_ERROR_NO_DEVICE;
     }
 
-    // send interface conditions
+    // Send CMD8, if the card rejects the command then it's probably using the
+    // legacy protocol, or is a MMC, or just flat-out broken
     status = _cmd8();
-    if(BD_ERROR_OK != status)
-    {
-        return SD_ERROR;
+    if (BD_ERROR_OK != status && SD_BLOCK_DEVICE_ERROR_UNSUPPORTED != status) {
+        return status;
     }
-    //printf("IfCond\n");
-    // check echo pattern
-    //printf("Echo\n");
-    // attempt to initialize card
-    cmdAttempts = 0;
-    do
-    {
-        if(cmdAttempts > 100) return SD_ERROR;
 
-        // send app cmd
-        res[0] = _SD_sendApp();
-        ThisThread::sleep_for(200ms);
-        // if no error in response
-        if(res[0] < 2)
-        {
-            //printf("No Error on App\n");
-            res[0] = _SD_sendOpCond();
-            ThisThread::sleep_for(100ms);
+#if MBED_CONF_SD_CRC_ENABLED
+    if (_crc_on) {
+        // Enable CRC
+        status = _cmd(CMD59_CRC_ON_OFF, _crc_on);
+    }
+#endif
+
+    // Read OCR - CMD58 Response contains OCR register
+    if (BD_ERROR_OK != (status = _cmd(CMD58_READ_OCR, 0x0, 0x0, &response))) {
+        return status;
+    }
+
+    // Check if card supports voltage range: 3.3V
+    if (!(response & OCR_3_3V)) {
+        _card_type = CARD_UNKNOWN;
+        status = SD_BLOCK_DEVICE_ERROR_UNUSABLE;
+        return status;
+    }
+
+    // HCS is set 1 for HC/XC capacity cards for ACMD41, if supported
+    arg = 0x0;
+    if (SDCARD_V2 == _card_type) {
+        arg |= OCR_HCS_CCS;
+    }
+
+    /* Idle state bit in the R1 response of ACMD41 is used by the card to inform the host
+     * if initialization of ACMD41 is completed. "1" indicates that the card is still initializing.
+     * "0" indicates completion of initialization. The host repeatedly issues ACMD41 until
+     * this bit is set to "0".
+     */
+    _spi_timer.start();
+    do {
+        status = _cmd(ACMD41_SD_SEND_OP_COND, arg, 1, &response);
+    } while ((response & R1_IDLE_STATE) && (_spi_timer.elapsed_time() < SD_COMMAND_TIMEOUT));
+    _spi_timer.stop();
+
+    // Initialization complete: ACMD41 successful
+    if ((BD_ERROR_OK != status) || (0x00 != response)) {
+        _card_type = CARD_UNKNOWN;
+        debug_if(SD_DBG, "Timeout waiting for card\n");
+        return status;
+    }
+
+    if (SDCARD_V2 == _card_type) {
+        // Get the card capacity CCS: CMD58
+        if (BD_ERROR_OK == (status = _cmd(CMD58_READ_OCR, 0x0, 0x0, &response))) {
+            // High Capacity card
+            if (response & OCR_HCS_CCS) {
+                _card_type = SDCARD_V2HC;
+                debug_if(SD_DBG, "Card Initialized: High Capacity Card \n");
+            } else {
+                debug_if(SD_DBG, "Card Initialized: Standard Capacity Card: Version 2.x \n");
+            }
         }
-        //printf("CMD41 Res: %02X\n", res[0]);
-        // wait
-        ThisThread::sleep_for(100ms);
-
-        cmdAttempts++;
+    } else {
+        _card_type = SDCARD_V1;
+        debug_if(SD_DBG, "Card Initialized: Version 1.x Card\n");
     }
-    while(res[0] != SD_READY);
 
-    return SD_SUCCESS;
+#if MBED_CONF_SD_CRC_ENABLED
+    if (!_crc_on) {
+        // Disable CRC
+        status = _cmd(CMD59_CRC_ON_OFF, _crc_on);
+    }
+#else
+    status = _cmd(CMD59_CRC_ON_OFF, 0);
+#endif
+
+    return status;
 }
 
 
-int TestSDBlockDevice::init()
+int PicoSDBlockDevice::init()
 {
     int err;
 
@@ -226,9 +408,30 @@ int TestSDBlockDevice::init()
     }
 
     err = _initialise_card();
-    _is_initialized = (err == SD_SUCCESS);
+    _is_initialized = (err == BD_ERROR_OK);
     if (!_is_initialized) {
         debug_if(SD_DBG, "Fail to initialize card\n");
+        unlock();
+        return err;
+    }
+    debug_if(SD_DBG, "init card = %d\n", _is_initialized);
+    _sectors = _sd_sectors();
+    // CMD9 failed
+    if (0 == _sectors) {
+        unlock();
+        return BD_ERROR_DEVICE_ERROR;
+    }
+
+    // Set block length to 512 (CMD16)
+    if (_cmd(CMD16_SET_BLOCKLEN, _block_size) != 0) {
+        debug_if(SD_DBG, "Set %" PRIu32 "-byte block timed out\n", _block_size);
+        unlock();
+        return BD_ERROR_DEVICE_ERROR;
+    }
+
+    // Set SCK for data transfer
+    err = _freq();
+    if (err) {
         unlock();
         return err;
     }
@@ -239,14 +442,14 @@ end:
 }
 
 #if DEVICE_SPI_ASYNCH
-void TestSDBlockDevice::set_async_spi_mode(bool enabled, DMAUsage dma_usage_hint)
+void PicoSDBlockDevice::set_async_spi_mode(bool enabled, DMAUsage dma_usage_hint)
 {
     _async_spi_enabled = enabled;
     _spi.set_dma_usage(dma_usage_hint);
 }
 #endif
 
-int TestSDBlockDevice::deinit()
+int PicoSDBlockDevice::deinit()
 {
     lock();
 
@@ -270,7 +473,7 @@ end:
 }
 
 
-int TestSDBlockDevice::program(const void *b, bd_addr_t addr, bd_size_t size)
+int PicoSDBlockDevice::program(const void *b, bd_addr_t addr, bd_size_t size)
 {
     if (!is_valid_program(addr, size)) {
         return SD_BLOCK_DEVICE_ERROR_PARAMETER;
@@ -291,13 +494,14 @@ int TestSDBlockDevice::program(const void *b, bd_addr_t addr, bd_size_t size)
 
     // SDSC Card (CCS=0) uses byte unit address
     // SDHC and SDXC Cards (CCS=1) use block unit address (512 Bytes unit)
-    addr = addr / _block_size;
-    
+    if (SDCARD_V2HC == _card_type) {
+        addr = addr / _block_size;
+    }
 
     // Send command to perform write operation
     if (blockCnt == 1) {
         // Single block write command
-        if (BD_ERROR_OK != (status = _cmd(CMD24, addr))) {
+        if (BD_ERROR_OK != (status = _cmd(CMD24_WRITE_BLOCK, addr))) {
             unlock();
             return status;
         }
@@ -312,10 +516,10 @@ int TestSDBlockDevice::program(const void *b, bd_addr_t addr, bd_size_t size)
         }
     } else {
         // Pre-erase setting prior to multiple block write operation
-        _cmd(23, blockCnt, 1);
+        _cmd(ACMD23_SET_WR_BLK_ERASE_COUNT, blockCnt, 1);
 
         // Multiple block write command
-        if (BD_ERROR_OK != (status = _cmd(25, addr))) {
+        if (BD_ERROR_OK != (status = _cmd(CMD25_WRITE_MULTIPLE_BLOCK, addr))) {
             unlock();
             return status;
         }
@@ -342,7 +546,7 @@ int TestSDBlockDevice::program(const void *b, bd_addr_t addr, bd_size_t size)
     return status;
 }
 
-int TestSDBlockDevice::read(void *b, bd_addr_t addr, bd_size_t size)
+int PicoSDBlockDevice::read(void *b, bd_addr_t addr, bd_size_t size)
 {
     if (!is_valid_read(addr, size)) {
         return SD_BLOCK_DEVICE_ERROR_PARAMETER;
@@ -360,13 +564,15 @@ int TestSDBlockDevice::read(void *b, bd_addr_t addr, bd_size_t size)
 
     // SDSC Card (CCS=0) uses byte unit address
     // SDHC and SDXC Cards (CCS=1) use block unit address (512 Bytes unit)
+    if (SDCARD_V2HC == _card_type) {
         addr = addr / _block_size;
+    }
 
     // Write command ro receive data
     if (blockCnt > 1) {
-        status = _cmd(18, addr);
+        status = _cmd(CMD18_READ_MULTIPLE_BLOCK, addr);
     } else {
-        status = _cmd(17, addr);
+        status = _cmd(CMD17_READ_SINGLE_BLOCK, addr);
     }
     if (BD_ERROR_OK != status) {
         unlock();
@@ -392,7 +598,7 @@ int TestSDBlockDevice::read(void *b, bd_addr_t addr, bd_size_t size)
     return status;
 }
 
-bool TestSDBlockDevice::_is_valid_trim(bd_addr_t addr, bd_size_t size)
+bool PicoSDBlockDevice::_is_valid_trim(bd_addr_t addr, bd_size_t size)
 {
     return (
                addr % _erase_size == 0 &&
@@ -400,7 +606,7 @@ bool TestSDBlockDevice::_is_valid_trim(bd_addr_t addr, bd_size_t size)
                addr + size <= this->size());
 }
 
-int TestSDBlockDevice::trim(bd_addr_t addr, bd_size_t size)
+int PicoSDBlockDevice::trim(bd_addr_t addr, bd_size_t size)
 {
     if (!_is_valid_trim(addr, size)) {
         return SD_BLOCK_DEVICE_ERROR_PARAMETER;
@@ -416,52 +622,53 @@ int TestSDBlockDevice::trim(bd_addr_t addr, bd_size_t size)
     size -= _block_size;
     // SDSC Card (CCS=0) uses byte unit address
     // SDHC and SDXC Cards (CCS=1) use block unit address (512 Bytes unit)
-    size = size / _block_size;
-    addr = addr / _block_size;
-    
+    if (SDCARD_V2HC == _card_type) {
+        size = size / _block_size;
+        addr = addr / _block_size;
+    }
 
     // Start lba sent in start command
-    if (BD_ERROR_OK != (status = _cmd(32, addr))) {
+    if (BD_ERROR_OK != (status = _cmd(CMD32_ERASE_WR_BLK_START_ADDR, addr))) {
         unlock();
         return status;
     }
 
     // End lba = addr+size sent in end addr command
-    if (BD_ERROR_OK != (status = _cmd(33, addr + size))) {
+    if (BD_ERROR_OK != (status = _cmd(CMD33_ERASE_WR_BLK_END_ADDR, addr + size))) {
         unlock();
         return status;
     }
-    status = _cmd(38, 0x0);
+    status = _cmd(CMD38_ERASE, 0x0);
     unlock();
     return status;
 }
 
-bd_size_t TestSDBlockDevice::get_read_size() const
+bd_size_t PicoSDBlockDevice::get_read_size() const
 {
     return _block_size;
 }
 
-bd_size_t TestSDBlockDevice::get_program_size() const
+bd_size_t PicoSDBlockDevice::get_program_size() const
 {
     return _block_size;
 }
 
-bd_size_t TestSDBlockDevice::size() const
+bd_size_t PicoSDBlockDevice::size() const
 {
     return _block_size * _sectors;
 }
 
-const char *TestSDBlockDevice::get_type() const
+const char *PicoSDBlockDevice::get_type() const
 {
     return "SD";
 }
 
-void TestSDBlockDevice::debug(bool dbg)
+void PicoSDBlockDevice::debug(bool dbg)
 {
     _dbg = dbg;
 }
 
-int TestSDBlockDevice::frequency(uint64_t freq)
+int PicoSDBlockDevice::frequency(uint64_t freq)
 {
     lock();
     _transfer_sck = freq;
@@ -471,7 +678,7 @@ int TestSDBlockDevice::frequency(uint64_t freq)
 }
 
 // PRIVATE FUNCTIONS
-int TestSDBlockDevice::_freq(void)
+int PicoSDBlockDevice::_freq(void)
 {
     // Max frequency supported is 25MHZ
     if (_transfer_sck <= 25000000) {
@@ -484,7 +691,7 @@ int TestSDBlockDevice::_freq(void)
     }
 }
 
-uint8_t TestSDBlockDevice::_cmd_spi(uint8_t cmd, uint32_t arg)
+uint8_t PicoSDBlockDevice::_cmd_spi(PicoSDBlockDevice::cmdSupported cmd, uint32_t arg)
 {
     uint8_t response;
     char cmdPacket[PACKET_SIZE];
@@ -508,10 +715,10 @@ uint8_t TestSDBlockDevice::_cmd_spi(uint8_t cmd, uint32_t arg)
         // CMD0 is executed in SD mode, hence should have correct CRC
         // CMD8 CRC verification is always enabled
         switch (cmd) {
-            case CMD0:
+            case CMD0_GO_IDLE_STATE:
                 cmdPacket[5] = 0x95;
                 break;
-            case CMD8:
+            case CMD8_SEND_IF_COND:
                 cmdPacket[5] = 0x87;
                 break;
             default:
@@ -526,8 +733,10 @@ uint8_t TestSDBlockDevice::_cmd_spi(uint8_t cmd, uint32_t arg)
         _spi.transfer_and_wait(cmdPacket, PACKET_SIZE, nullptr, 0);
     } else
 #endif
-    {
-        _spi.write(cmdPacket, PACKET_SIZE, nullptr, 0);
+    {   
+        char *dummy_rx = (char *)malloc(PACKET_SIZE);
+        _spi.write(cmdPacket, PACKET_SIZE, dummy_rx, PACKET_SIZE);
+        free(dummy_rx);
     }
 
     // The received byte immediataly following CMD12 is a stuff byte,
@@ -547,7 +756,7 @@ uint8_t TestSDBlockDevice::_cmd_spi(uint8_t cmd, uint32_t arg)
     return response;
 }
 
-int TestSDBlockDevice::_cmd(uint8_t cmd, uint32_t arg, bool isAcmd, uint32_t *resp)
+int PicoSDBlockDevice::_cmd(PicoSDBlockDevice::cmdSupported cmd, uint32_t arg, bool isAcmd, uint32_t *resp)
 {
     int32_t status = BD_ERROR_OK;
     uint32_t response;
@@ -563,12 +772,11 @@ int TestSDBlockDevice::_cmd(uint8_t cmd, uint32_t arg, bool isAcmd, uint32_t *re
         }
     }
 
-
     // Re-try command
     for (int i = 0; i < 3; i++) {
         // Send CMD55 for APP command first
         if (isAcmd) {
-            response = _cmd_spi(CMD55, 0x0);
+            response = _cmd_spi(CMD55_APP_CMD, 0x0);
             // Wait for card to be ready after CMD55
             if (false == _wait_ready(SD_COMMAND_TIMEOUT)) {
                 debug_if(SD_DBG, "Card not ready yet \n");
@@ -603,6 +811,9 @@ int TestSDBlockDevice::_cmd(uint8_t cmd, uint32_t arg, bool isAcmd, uint32_t *re
     if (response & R1_ILLEGAL_COMMAND) {
         _postclock_then_deselect();
         debug_if(SD_DBG, "Illegal command CMD:%d response 0x%" PRIx32 "\n", cmd, response);
+        if (CMD8_SEND_IF_COND == cmd) {                  // Illegal command is for Ver1 or not SD Card
+            _card_type = CARD_UNKNOWN;
+        }
         return SD_BLOCK_DEVICE_ERROR_UNSUPPORTED;      // Command not supported
     }
 
@@ -617,10 +828,11 @@ int TestSDBlockDevice::_cmd(uint8_t cmd, uint32_t arg, bool isAcmd, uint32_t *re
 
     // Get rest of the response part for other commands
     switch (cmd) {
-        case CMD8:             // Response R7
+        case CMD8_SEND_IF_COND:             // Response R7
             debug_if(_dbg, "V2-Version Card\n");
+            _card_type = SDCARD_V2; // fallthrough
         // Note: No break here, need to read rest of the response
-        case CMD58:                // Response R3
+        case CMD58_READ_OCR:                // Response R3
             response  = (_spi.write(SPI_FILL_CHAR) << 24);
             response |= (_spi.write(SPI_FILL_CHAR) << 16);
             response |= (_spi.write(SPI_FILL_CHAR) << 8);
@@ -629,11 +841,11 @@ int TestSDBlockDevice::_cmd(uint8_t cmd, uint32_t arg, bool isAcmd, uint32_t *re
             break;
 
         case CMD12_STOP_TRANSMISSION:       // Response R1b
-        case CMD38:
+        case CMD38_ERASE:
             _wait_ready(SD_COMMAND_TIMEOUT);
             break;
 
-        case ACMD13:             // Response R2
+        case ACMD13_SD_STATUS:             // Response R2
             response = _spi.write(SPI_FILL_CHAR);
             debug_if(_dbg, "R2: 0x%" PRIx32 "\n", response);
             break;
@@ -648,9 +860,9 @@ int TestSDBlockDevice::_cmd(uint8_t cmd, uint32_t arg, bool isAcmd, uint32_t *re
     }
 
     // Do not deselect card if read is in progress.
-    if (((CMD9 == cmd) || (22 == cmd) ||
-            (24 == cmd) || (25 == cmd) ||
-            (17 == cmd) || (18 == cmd))
+    if (((CMD9_SEND_CSD == cmd) || (ACMD22_SEND_NUM_WR_BLOCKS == cmd) ||
+            (CMD24_WRITE_BLOCK == cmd) || (CMD25_WRITE_MULTIPLE_BLOCK == cmd) ||
+            (CMD17_READ_SINGLE_BLOCK == cmd) || (CMD18_READ_MULTIPLE_BLOCK == cmd))
             && (BD_ERROR_OK == status)) {
         return BD_ERROR_OK;
     }
@@ -659,7 +871,7 @@ int TestSDBlockDevice::_cmd(uint8_t cmd, uint32_t arg, bool isAcmd, uint32_t *re
     return status;
 }
 
-int TestSDBlockDevice::_cmd8()
+int PicoSDBlockDevice::_cmd8()
 {
     uint32_t arg = (CMD8_PATTERN << 0);         // [7:0]check pattern
     uint32_t response = 0;
@@ -667,11 +879,20 @@ int TestSDBlockDevice::_cmd8()
 
     arg |= (0x1 << 8);  // 2.7-3.6V             // [11:8]supply voltage(VHS)
 
-    status = _cmd(CMD8, arg, 0x0, &response);
+    status = _cmd(CMD8_SEND_IF_COND, arg, 0x0, &response);
+    // Verify voltage and pattern for V2 version of card
+    if ((BD_ERROR_OK == status) && (SDCARD_V2 == _card_type)) {
+        // If check pattern is not matched, CMD8 communication is not valid
+        if ((response & 0xFFF) != arg) {
+            debug_if(SD_DBG, "CMD8 Pattern mismatch 0x%" PRIx32 " : 0x%" PRIx32 "\n", arg, response);
+            _card_type = CARD_UNKNOWN;
+            status = SD_BLOCK_DEVICE_ERROR_UNUSABLE;
+        }
+    }
     return status;
 }
 
-uint32_t TestSDBlockDevice::_go_idle_state()
+uint32_t PicoSDBlockDevice::_go_idle_state()
 {
     uint32_t response;
 
@@ -681,7 +902,7 @@ uint32_t TestSDBlockDevice::_go_idle_state()
      * not be interpreted as a command and get lost. For some cards retrying
      * the command overcomes this situation. */
     for (int i = 0; i < SD_CMD0_GO_IDLE_STATE_RETRIES; i++) {
-        _cmd(CMD0, 0x0, 0x0, &response);
+        _cmd(CMD0_GO_IDLE_STATE, 0x0, 0x0, &response);
         if (R1_IDLE_STATE == response) {
             break;
         }
@@ -690,7 +911,7 @@ uint32_t TestSDBlockDevice::_go_idle_state()
     return response;
 }
 
-int TestSDBlockDevice::_read_bytes(uint8_t *buffer, uint32_t length)
+int PicoSDBlockDevice::_read_bytes(uint8_t *buffer, uint32_t length)
 {
     uint16_t crc;
 
@@ -716,7 +937,10 @@ int TestSDBlockDevice::_read_bytes(uint8_t *buffer, uint32_t length)
     } else
 #endif
     {
-        _spi.write(nullptr, 0, buffer, length);
+        uint8_t *dummy_tx = (uint8_t *)malloc(length);
+        memset(dummy_tx, SPI_FILL_CHAR, length);
+        _spi.write(dummy_tx, length, buffer, length);
+        free(dummy_tx);
     }
 
     // Read the CRC16 checksum for the data block
@@ -742,10 +966,10 @@ int TestSDBlockDevice::_read_bytes(uint8_t *buffer, uint32_t length)
     return 0;
 }
 
-int TestSDBlockDevice::_read(uint8_t *buffer, uint32_t length)
+int PicoSDBlockDevice::_read(uint8_t *buffer, uint32_t length)
 {
     uint16_t crc;
-
+    
     // read until start byte (0xFE)
     if (false == _wait_token(SPI_START_BLOCK)) {
         debug_if(SD_DBG, "Read timeout\n");
@@ -767,7 +991,10 @@ int TestSDBlockDevice::_read(uint8_t *buffer, uint32_t length)
     } else
 #endif
     {
-        _spi.write(NULL, 0, (char *) buffer, length);
+        char *dummy_tx = (char *)malloc(length);
+        memset(dummy_tx, SPI_FILL_CHAR, length);
+        _spi.write(dummy_tx, length, (char *) buffer, length);
+        free(dummy_tx);
     }
 
     // Read the CRC16 checksum for the data block
@@ -791,7 +1018,7 @@ int TestSDBlockDevice::_read(uint8_t *buffer, uint32_t length)
     return 0;
 }
 
-uint8_t TestSDBlockDevice::_write(const uint8_t *buffer, uint8_t token, uint32_t length)
+uint8_t PicoSDBlockDevice::_write(const uint8_t *buffer, uint8_t token, uint32_t length)
 {
 
     uint32_t crc = (~0);
@@ -807,7 +1034,9 @@ uint8_t TestSDBlockDevice::_write(const uint8_t *buffer, uint8_t token, uint32_t
     } else
 #endif
     {
-        _spi.write(buffer, length, nullptr, 0);
+        uint8_t *dummy_rx = (uint8_t *)malloc(length);
+        _spi.write(buffer, length, dummy_rx, length);
+        free(dummy_rx);
     }
 
 #if MBED_CONF_SD_CRC_ENABLED
@@ -848,7 +1077,7 @@ static uint32_t ext_bits(unsigned char *data, int msb, int lsb)
     return bits;
 }
 
-bd_size_t TestSDBlockDevice::_sd_sectors()
+bd_size_t PicoSDBlockDevice::_sd_sectors()
 {
     uint32_t c_size, c_size_mult, read_bl_len;
     uint32_t block_len, mult, blocknr;
@@ -856,7 +1085,7 @@ bd_size_t TestSDBlockDevice::_sd_sectors()
     bd_size_t blocks = 0, capacity = 0;
 
     // CMD9, Response R2 (R1 byte + 16-byte block read)
-    if (_cmd(CMD9, 0x0) != 0x0) {
+    if (_cmd(CMD9_SEND_CSD, 0x0) != 0x0) {
         debug_if(SD_DBG, "Didn't get a response from the disk\n");
         return 0;
     }
@@ -915,7 +1144,7 @@ bd_size_t TestSDBlockDevice::_sd_sectors()
 }
 
 // SPI function to wait till chip is ready and sends start token
-bool TestSDBlockDevice::_wait_token(uint8_t token)
+bool PicoSDBlockDevice::_wait_token(uint8_t token)
 {
     _spi_timer.reset();
     _spi_timer.start();
@@ -933,7 +1162,7 @@ bool TestSDBlockDevice::_wait_token(uint8_t token)
 
 // SPI function to wait till chip is ready
 // The host controller should wait for end of the process until DO goes high (a 0xFF is received).
-bool TestSDBlockDevice::_wait_ready(std::chrono::duration<uint32_t, std::milli> timeout)
+bool PicoSDBlockDevice::_wait_ready(std::chrono::duration<uint32_t, std::milli> timeout)
 {
     uint8_t response;
     _spi_timer.reset();
@@ -950,111 +1179,37 @@ bool TestSDBlockDevice::_wait_ready(std::chrono::duration<uint32_t, std::milli> 
 }
 
 // SPI function to wait for count
-void TestSDBlockDevice::_spi_wait(uint8_t count)
+void PicoSDBlockDevice::_spi_wait(uint8_t count)
 {
     for (uint8_t i = 0; i < count; ++i) {
         _spi.write(SPI_FILL_CHAR);
     }
 }
 
-void TestSDBlockDevice::_spi_init()
+void PicoSDBlockDevice::_spi_init()
 {
-    _cs = 1;
-    // Set to SCK for initialization, and clock card with _cs = 1
-    _spi.frequency(MBED_CONF_SD_INIT_FREQUENCY);
+    _spi.lock();
+    // Set to SCK for initialization, and clock card with cs = 1
+    _spi.frequency(_init_sck);
     _spi.format(8, 0);
     _spi.set_default_write_value(SPI_FILL_CHAR);
     // Initial 74 cycles required for few cards, before selecting SPI mode
-    for (uint8_t j = 0; j < 10; ++j) {
-        _spi.write(SPI_FILL_CHAR);
-    }
-    _cs = 1;
-    _spi.write(SPI_FILL_CHAR);
+    _spi_wait(10);
+    _spi.unlock();
 }
 
-void TestSDBlockDevice::_preclock_then_select()
+void PicoSDBlockDevice::_preclock_then_select()
 {
-    _spi.write(0xFF);
-    _cs = 0;
-    _spi.write(0xFF);
-}
-
-void TestSDBlockDevice::_postclock_then_deselect()
-{
-    _spi.write(0xFF);
-    _cs = 1;
-    _spi.write(0xFF);
-}
-
-uint8_t TestSDBlockDevice::_SDSPI_goIdle(){
+    _spi.lock();
     _spi.write(SPI_FILL_CHAR);
-    _cs = 0;
-    _spi.write(SPI_FILL_CHAR);
-
-    uint8_t res1 = _cmd_spi(CMD0, CMD0_ARG);
-
-    _spi.write(SPI_FILL_CHAR);
-    _cs = 1;
-    _spi.write(SPI_FILL_CHAR);
-
-    return res1;
+    _spi.select();
+    _spi.unlock();
 }
 
-/*
-void TestSDBlockDevice::_SD_sendIfCond(uint8_t *res)
+void PicoSDBlockDevice::_postclock_then_deselect()
 {
-    // assert chip select
-    _spi.write(0xFF);
-    _cs = 0;
-    _spi.write(0xFF);
-
-    // send CMD8
-    SD_command(CMD8, CMD8_ARG);
-
-    // read response
-    SD_readRes3_7(res);
-
-    // deassert chip select
-    _spi.write(0xFF);
-    _cs = 1;
-    _spi.write(0xFF);
-}
-*/
-
-uint8_t TestSDBlockDevice::_SD_sendApp()
-{
-    // assert chip select
-    _spi.write(0xFF);
-    _cs = 0;
-    _spi.write(0xFF);
-
-    // send CMD0
-    uint8_t res1 = _cmd_spi(CMD55, CMD55_ARG);
-
-    // deassert chip select
-    _spi.write(0xFF);
-    _cs = 1;
-    _spi.write(0xFF);
-
-    return res1;
-}
-
-uint8_t TestSDBlockDevice::_SD_sendOpCond()
-{
-    // assert chip select
-    _spi.write(0xFF);
-    _cs = 0;
-    _spi.write(0xFF);
-
-    // send CMD0
-    uint8_t res1 = _cmd_spi(ACMD41, ACMD41_ARG);
-
-    // deassert chip select
-    _spi.write(0xFF);
-    _cs = 1;
-    _spi.write(0xFF);
-
-    return res1;
+    _spi.write(SPI_FILL_CHAR);
+    _spi.deselect();
 }
 
 #endif  /* DEVICE_SPI */
