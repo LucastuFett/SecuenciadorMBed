@@ -7,6 +7,7 @@
 #include "FATFileSystem.h"
 #include "SDBlockDevice.h"
 
+
 #define CMD0        0
 #define CMD0_ARG    0x00000000
 #define CMD0_CRC    0x94
@@ -30,6 +31,10 @@
 #define CMD17                   17
 #define CMD17_CRC               0x00
 #define SD_MAX_READ_ATTEMPTS    1251        // (100 ms * 100 KHz) / 8 bits
+
+#define CMD24               24
+#define CMD24_CRC           0x00
+#define SD_MAX_WRITE_ATTEMPTS 3126        // (250 ms * 100 KHz) / 8 bits
 
 #define CMD_VER(X)          ((X >> 4) & 0xF0)
 #define VOL_ACC(X)          (X & 0x1F)
@@ -61,35 +66,31 @@
 
 #define SD_SUCCESS  0
 #define SD_ERROR    1
-#define SD_READY    0
+//#define SD_READY    0
 #define SD_R1_NO_ERROR(X)   X < 0x02
 
-FATFileSystem heap_fs("heap_fs");
-//SDBlockDevice bd(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS);
+#define SD_START_TOKEN          0xFE
+#define SD_ERROR_TOKEN          0x00
 
-class SDSPI : public SPI {
-    public:
-        SDSPI(PinName mosi, PinName miso, PinName sclk, PinName cs) : SPI(mosi, miso, sclk, cs){
+#define SD_DATA_ACCEPTED        0x05
+#define SD_DATA_REJECTED_CRC    0x0B
+#define SD_DATA_REJECTED_WRITE  0x0D
 
-        }
+#define SD_BLOCK_LEN            512
 
-        int write_nocs(int value) {
-            int ret = spi_master_write(&_peripheral->spi, value);
-            printf("SPI TX: 0x%02X RX: 0x%02X\n", value, ret);
-            return ret;
-        }
+#define SPITEST 0
+#define USBMON 0
 
+FATFileSystem fs("fs");
 
-};
+#if SPITEST
 
-
-SPI _spi(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, NC);
-DigitalOut cs(MBED_CONF_SD_SPI_CS);
+SPI _spi(p3, p0, p2, NC);
+DigitalOut cs(p1);
 uint8_t i = 0;
 uint8_t res0;
 uint8_t res55;
 uint8_t res41;
-
 
 void SD_command(uint8_t cmd, uint32_t arg, uint8_t crc)
 {
@@ -378,18 +379,18 @@ uint8_t SD_init()
         }
         printf("CMD41 Res: %02X\n", res[0]);
         // wait
-        ThisThread::sleep_for(10ms);
+        ThisThread::sleep_for(100ms);
 
         cmdAttempts++;
     }
     while(res[0] != SD_READY);
-
-    printf("PreOCR");
+    //ThisThread::sleep_for(10000ms);
+    //printf("PreOCR");
     // read OCR
-    SD_readOCR(res);
+    //SD_readOCR(res);
 
     // check card is ready
-    if(!(res[1] & 0x80)) return SD_ERROR;
+    //if(!(res[1] & 0x80)) return SD_ERROR;
 
     return SD_SUCCESS;
 }
@@ -450,13 +451,74 @@ uint8_t SD_readSingleBlock(uint32_t addr, uint8_t *buf, uint8_t *token)
     return res1;
 }
 
+uint8_t SD_writeSingleBlock(uint32_t addr, uint8_t *buf, uint8_t *token)
+{
+    uint16_t readAttempts;
+    uint8_t res1, read;
+
+    // set token to none
+    *token = 0xFF;
+
+    // assert chip select
+    _spi.write(0xFF);
+    cs = 0;
+    _spi.write(0xFF);
+
+    // send CMD24
+    SD_command(CMD24, addr, CMD24_CRC);
+
+    // read response
+    res1 = SD_readRes1();
+
+    // if no error
+    if(res1 == SD_READY)
+    {
+        // send start token
+        _spi.write(SD_START_TOKEN);
+
+        // write buffer to card
+        for(uint16_t i = 0; i < SD_BLOCK_LEN; i++) _spi.write(buf[i]);
+
+        // wait for a response (timeout = 250ms)
+        readAttempts = 0;
+        while(++readAttempts != SD_MAX_WRITE_ATTEMPTS)
+            if((read = _spi.write(0xFF)) != 0xFF) { *token = 0xFF; break; }
+
+        // if data accepted
+        if((read & 0x1F) == 0x05)
+        {
+            // set token to data accepted
+            *token = 0x05;
+
+            // wait for write to finish (timeout = 250ms)
+            readAttempts = 0;
+            while(_spi.write(0xFF) == 0x00)
+                if(++readAttempts == SD_MAX_WRITE_ATTEMPTS) { *token = 0x00; break; }
+        }
+    }
+
+    // deassert chip select
+    _spi.write(0xFF);
+    cs = 1;
+    _spi.write(0xFF);
+
+    return res1;
+}
+
+#else
+SDBlockDevice bd(p3, p0, p2, p1);
+#endif
+
 int main()
 {
-    
+    #if USBMON
     ThisThread::sleep_for(10000ms);
     printf("Test");
     ThisThread::sleep_for(1000ms);
-    uint8_t res[5], sdBuf[512], token;
+    #endif
+
+    #if SPITEST
+    uint8_t res[5], sdBuf[512], token, reswr;
     //uint8_t res7[5];
     //uint8_t res3[5];
     //uint16_t attempts = 0;
@@ -472,7 +534,7 @@ int main()
     }
 
     // read sector 0
-    res[0] = SD_readSingleBlock(0x00000000, sdBuf, &token);
+    res[0] = SD_readSingleBlock(0x00000100, sdBuf, &token);
     
 
     /*
@@ -490,7 +552,32 @@ int main()
         printf("%i, r55=%02X,r41=%02X\n",attempts, res55, res41);
     }while(res41 != 0);
     */
+
+    // print response
+    if(SD_R1_NO_ERROR(res[0]) && (token == 0xFE))
+    {
+        for(uint16_t i = 0; i < 512; i++) printf("0x%02X",sdBuf[i]);
+        printf("\r\n");
+    }
+    else
+    {
+        printf("Error reading sector\r\n");
+    }
+
     ThisThread::sleep_for(100ms);
+
+    // fill buffer with 0x55
+    for(uint16_t i = 0; i < 512; i++) sdBuf[i] = 0x55;
+
+    // write 0x55 to address 0x100 (256)
+    reswr = SD_writeSingleBlock(0x00000100, sdBuf, &token);
+
+    SD_printR1(reswr);
+    if(token == SD_DATA_ACCEPTED) printf("Data accepted\r\n");
+    else if(token == SD_DATA_REJECTED_CRC) printf("Data rejected, CRC error\r\n");
+    else if(token == SD_DATA_REJECTED_WRITE) printf("Data rejected, write error\r\n");
+    else if(token == SD_ERROR_TOKEN) printf("Error token received\r\n");
+    else printf("Unknown token received: 0x%02X\r\n", token);
     while(1){
         /*
         printf("R1:\n");
@@ -506,42 +593,44 @@ int main()
         printf("\nAttempts: %i\n");
         */
         
-        // print response
-        if(SD_R1_NO_ERROR(res[0]) && (token == 0xFE))
-        {
-            for(uint16_t i = 0; i < 512; i++) printf("0x%02X",sdBuf[i]);
-            printf("\r\n");
-        }
-        else
-        {
-            printf("Error reading sector\r\n");
-        }
+
         
     }
-        
-    /*
+    #else    
+    
     ThisThread::sleep_for(10000ms);
     bd.init();
 
     FATFileSystem::format(&bd);
 
-    int err = heap_fs.mount(&bd);
+    int err = fs.mount(&bd);
 
     if (err) {
-        printf("%s filesystem mount failed\ntry to reformat device... \r\n", heap_fs.getName());
-        err = heap_fs.reformat(&bd);
+        #if USBMON
+        printf("%s filesystem mount failed\ntry to reformat device... \r\n", fs.getName());
+        #endif
+        err = fs.reformat(&bd);
     }
 
     // If still error, then report failure
     if (err) {
+        #if USBMON
         printf("Error: Unable to format/mount the device.\r\n");
+        #endif
         while (1);
-    }*/
-    /*
+    }
+    
+    #if !USBMON
     USBMSD usb(&bd);
 
     while (true) {
         usb.process();
-    }*/
+    }
+
+    #else 
+    while(true);
+    #endif
+
+    #endif
     return 0;
 }

@@ -74,19 +74,21 @@ add_subdirectory(mbed-os)
 ### add executable (necessary everytime)
 # This will compile an elf file named the same as the project with the given source files.
 add_executable(${PROJECT_NAME} 
-    src/main.cpp 
-    src/MIDITimer.cpp
-    src/Buttons.cpp
-    src/Screen.cpp
-    src/MIDIFile.cpp
-    drivers/src/WS2812.cpp
-    drivers/src/Encoder.cpp
-    drivers/src/GraphicsDisplay.cpp
-    drivers/src/SPI_TFT_ILI9341.cpp
-    drivers/src/TextDisplay.cpp
+    # src/main.cpp 
+    src/SDTest.cpp
+    # src/MIDITimer.cpp
+    # src/Buttons.cpp
+    # src/Screen.cpp
+    # src/MIDIFile.cpp
+    # drivers/src/WS2812.cpp
+    # drivers/src/Encoder.cpp
+    # drivers/src/GraphicsDisplay.cpp
+    # drivers/src/SPI_TFT_ILI9341.cpp
+    # drivers/src/TextDisplay.cpp
+    # drivers/src/TestSDBlockDevice.cpp
     drivers/src/spi_api_fix.c
-    mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
-    mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
+    # mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
+    # mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -107,7 +109,7 @@ https://github.com/mbed-ce/mbed-os/wiki/MbedOS-configuration#configuration-via-c
 if("MBED_CONF_TARGET_APPLICATION_PROFILE=bare-metal" IN_LIST MBED_CONFIG_DEFINITIONS)
     target_link_libraries(${PROJECT_NAME} mbed-baremetal)
 else()
-    target_link_libraries(${PROJECT_NAME} mbed-os mbed-usb mbed-usb-msd mbed-storage-fat mbed-storage-blockdevice) # mbed-storage-sd
+    target_link_libraries(${PROJECT_NAME} mbed-os mbed-usb mbed-usb-msd mbed-storage-fat mbed-storage-blockdevice mbed-storage-sd) # 
 endif()
 
 
