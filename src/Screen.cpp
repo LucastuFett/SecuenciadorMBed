@@ -223,12 +223,12 @@ void Screen::showMenu(bool show) {
 		fillrect(2,130,68,131,Cyan);
 
 		// Draw Velocity Circle
-		circle(280,120,16, White);
+		circle(280,110,16, White);
 
 		updateMenuText(0); // Update the menu text for all menus
 	} else if (!show && _menu) {
 		fillrect(0,30,70,181, Black); // Hide the menu
-		fillrect(250,80,300,200, Black); // Hide the velocity circle and text
+		fillrect(250,70,300,200, Black); // Hide the velocity circle and text
 	}
 	_menu = show;
 }
@@ -252,9 +252,9 @@ void Screen::updateMenuText(uint8_t menu) {
 			locate(6,165);
 			puts((tones[tone] + " " + scales[mode].name).c_str());
 
-			locate(270,90);
+			locate(270,80);
 			puts("Vel");
-			locate(268,116);
+			locate(268,106);
 			puts(to_string(velocity).c_str());
 
 			locate(260,160);
@@ -263,6 +263,14 @@ void Screen::updateMenuText(uint8_t menu) {
 			foreground(DarkGrey);
 			puts("17-32");
 			foreground(White);
+
+			if (!mode32) {
+				locate(260,140);
+				puts("16 St");
+			}else{
+				locate(260,140);
+				puts("32 St");
+			}
 			break;
 
 		case 1: // Channel
@@ -284,8 +292,8 @@ void Screen::updateMenuText(uint8_t menu) {
 			break;
 
 		case 4: // Velocity
-			fillrect(268,116,290,128, Black);
-			locate(268,116);
+			fillrect(268,106,290,118, Black);
+			locate(268,106);
 			puts(to_string(velocity).c_str());
 			break;
 
@@ -306,7 +314,15 @@ void Screen::updateMenuText(uint8_t menu) {
 				puts("17-32");
 			}
 			break;
-
+		case 6: // Mode Change
+			if (!mode32) {
+				locate(260,140);
+				puts("16 St");
+			}else{
+				locate(260,140);
+				puts("32 St");
+			}
+			break;
 		default:
 			break;
 	}
@@ -777,6 +793,10 @@ void Screen::updateScreen() {
 			if (hold != _lastHold){
 				updateHold();
 				_lastHold = hold;
+			}
+			if (mode32 != _lastMode32){
+				updateMenuText(6);
+				_lastMode32 = mode32;
 			}
 			break;
 		case NOTE:

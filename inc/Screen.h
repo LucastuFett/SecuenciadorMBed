@@ -64,6 +64,7 @@ class Screen : public SPI_TFT_ILI9341 {
     int8_t _lastCurrentFile = -1;
     string _lastFiles[12];
     uint16_t _lastBkgColors[12];
+    bool _lastMode32 = false;
 
     // Cover Title
     void coverTitle();

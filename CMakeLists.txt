@@ -75,7 +75,6 @@ add_subdirectory(mbed-os)
 # This will compile an elf file named the same as the project with the given source files.
 add_executable(${PROJECT_NAME} 
     src/main.cpp 
-    # src/SDTest.cpp
     src/MIDITimer.cpp
     src/Buttons.cpp
     src/Screen.cpp
@@ -89,6 +88,8 @@ add_executable(${PROJECT_NAME}
     drivers/src/spi_api_fix.c
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_util/pheap.c
     mbed-os/targets/TARGET_RASPBERRYPI/pico-sdk/src/common/pico_sync/sem.c
+    # src/UARTTest.cpp
+    # src/SDTest.cpp
 )
 
 target_include_directories(${PROJECT_NAME}

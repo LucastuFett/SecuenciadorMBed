@@ -9,7 +9,7 @@
 #include "definitions.h"
 
 #define TESTING_BTN 1
-#define TESTING_MODES 0
+#define TESTING_MODES 1
 
 // Hardware
 
@@ -52,7 +52,6 @@ DigitalOut rows[5] ={
     DigitalOut(p20)
 };
 
-DigitalIn toggle32(p28, PullNone);
 BufferedSerial midiUART(p12, p13, 31250);
 WS2812_PIO ledStrip(p5, 8);
 Encoder encoder(p6, p7, PullUp); 
@@ -184,7 +183,8 @@ void selectFunc() {
             mainState = PROG;
             break;
         case PROG:
-            if (mode32) half = !half;
+            if (shift) mode32 = !mode32;
+            else if (mode32) half = !half;
             break;
         case MEMORY:
         case RENAME:
@@ -655,17 +655,19 @@ int main()
     #if TESTING_MODES
 
     // Programming Test
+    /*
     beatsPerTone[576] = 0x10400000;
     beatsPerTone[608] = 0x00400000;
     holdKey holdTest = {0,0,60};
     holded.emplace(holdTest,5);
     holdKey holdTest2 = {9,0,62};
     holded.emplace(holdTest2,14);
+    */
     mainState = PROG;
     changeState(); // Initial state change
     ThisThread::sleep_for(1s);
     //midiFile.saveToFile();
-
+    /*
     // Text Edit Test
     shift = true;
     function1();
@@ -674,13 +676,13 @@ int main()
     ThisThread::sleep_for(500ms);
     right();
     ThisThread::sleep_for(500ms);
-    select();
+    selectFunc();
     ThisThread::sleep_for(200ms);
     right();
     ThisThread::sleep_for(500ms);
     function2();
     ThisThread::sleep_for(200ms);
-    select();
+    selectFunc();
     ThisThread::sleep_for(500ms);
     function1();
     ThisThread::sleep_for(1s);
@@ -689,19 +691,20 @@ int main()
     ThisThread::sleep_for(1s);
     function4();
     ThisThread::sleep_for(10s);
-    exit();
+    exitFunc();
     ThisThread::sleep_for(1s);
-    exit();
+    exitFunc();
     ThisThread::sleep_for(500ms);
-    exit();
+    exitFunc();
     ThisThread::sleep_for(500ms);
     shift = true;
     function3();
-    
+    */
     #endif
 
     while (true) {
         //timer.poll();
+        #if !TESTING_MODES
         readKeys();
         if (memcmp(keys, lastKeys, sizeof(keys)) != 0) {
             if (switches[1]){
@@ -740,18 +743,14 @@ int main()
                 shift = true;
             }
             if (!switches[1] && lastSwitches[1]){
-                if (shiftTimer.elapsed_time() < std::chrono::microseconds(1000000) && shift == true) exitFunc();
-                else shift = false;
+                if (shiftTimer.elapsed_time() < std::chrono::microseconds(1000000) && shift == true) {
+                    exitFunc();
+                    shift = false;
+                } else shift = false;
                 shiftTimer.stop();
             }
             memcpy(lastSwitches, switches, sizeof(switches));
         }
-        #if !TESTING_BTN
-        if (toggle32 != lastToggle){
-            mode32 = toggle32;
-            lastToggle = toggle32;
-        }
-        #endif
 
         if (encoder.getRotaryEncoder()){
             int current=encoder.read();
@@ -759,7 +758,7 @@ int main()
             if (current == 1) right();
             if (current == -1) left();
         }
-
+        #endif
         if (midiFile.getUSB()) midiFile.process();
         if (midiFile.media_removed() && midiFile.getUSB()){
             midiFile.deinitUSB();
