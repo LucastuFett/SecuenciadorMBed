@@ -1,18 +1,15 @@
 #include "mbed.h"
 #include "testFiles.h"
 #include "USBMSD.h"
-#include "HeapBlockDevice.h"
+#include "PicoSDBlockDevice.h"
 #include "FATFileSystem.h"
 #include "USBPhyHw.h"
 #include "usb_phy_api.h"
 
-#define DEFAULT_BLOCK_SIZE  512
-#define HEAP_BLOCK_DEVICE_SIZE (128 * DEFAULT_BLOCK_SIZE)
-
 
 class MIDIFile : public USBMSD{
-    FATFileSystem _heap_fs;
-    HeapBlockDevice _bd;
+    FATFileSystem _fs;
+    PicoSDBlockDevice _bd;
     bool _usb;
     vector<uint8_t> _mtrk;
 
@@ -53,6 +50,9 @@ class MIDIFile : public USBMSD{
     // Calculate Delta
     void calcDelta(uint32_t value);
 
+    // Read Delta Value from File
+    void readDelta(FILE *f, uint32_t response[]);
+
     // Load Test FIles
     void loadTestFiles();
 public:
@@ -76,9 +76,6 @@ public:
 
     // Read from a file
     void readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank);
-
-    // Read Delta Value from File
-    void readDelta(FILE *f, uint32_t response[]);
 
     // Get files in a bank folder
     void getFiles(uint8_t bank, string files[12]);

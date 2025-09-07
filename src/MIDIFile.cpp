@@ -13,17 +13,17 @@ extern Mutex messagesMutex;
 // VID_0703&PID_0104
 MIDIFile::MIDIFile() :
 USBMSD(get_usb_phy(),&_bd,0x0703,0x0104,1),
-_heap_fs("fs"),
-_bd(HEAP_BLOCK_DEVICE_SIZE, DEFAULT_BLOCK_SIZE)
+_fs("fs"),
+_bd(p3, p0, p2, p1)
 {
     _bd.init();
 
     FATFileSystem::format(&_bd);
 
-    int err = _heap_fs.mount(&_bd);
+    int err = _fs.mount(&_bd);
 
     if (err) {
-        err = _heap_fs.reformat(&_bd);
+        err = _fs.reformat(&_bd);
     }
 
     // If still error, then report failure
@@ -34,16 +34,14 @@ _bd(HEAP_BLOCK_DEVICE_SIZE, DEFAULT_BLOCK_SIZE)
 }
 
 void MIDIFile::init() {
-	mkdir("/fs/1",0x1FF);
-    mkdir("/fs/2",0x1FF);
-    mkdir("/fs/3",0x1FF);
-    mkdir("/fs/4",0x1FF);
-    mkdir("/fs/5",0x1FF);
-    mkdir("/fs/6",0x1FF);
-    mkdir("/fs/7",0x1FF);
-    mkdir("/fs/8",0x1FF);
-
-	loadTestFiles();
+	
+	for (uint8_t i = 1; i < 9; i++) {
+		string path = "/fs/" + to_string(i);
+		DIR *dir = opendir(path.c_str());
+		if (dir) closedir(dir);
+		else mkdir(path.c_str(),0x1FF);
+	}
+	// loadTestFiles();
 }
 
 void MIDIFile::loadTestFiles(){
