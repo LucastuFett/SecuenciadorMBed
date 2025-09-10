@@ -134,9 +134,9 @@ void Screen::updateText(){
 	switch(mainState) {
 		case PROG:
 			locate(245,10);
-			puts("Prog");
+			puts("Edit");
 			locate(245,35);
-			puts("ram");
+			puts("Seq");
 			break;
 
 		case NOTE:

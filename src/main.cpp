@@ -139,7 +139,6 @@ int8_t prevMode = 0; // Previous mode for the UI
 int8_t prevChn = 0; // Previous channel for the UI
 int8_t prevTone = 0; // Previous tone for the UI
 int16_t prevTempo[2] = {0,120};
-bool lastToggle = false;
 uint32_t ledData[16];
 uint32_t lastLedData[16];
 

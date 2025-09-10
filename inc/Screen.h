@@ -4,7 +4,7 @@
 
 // Constants
 
-const string labels[10][8] = {{"Program", "Play", "Launch", "DAW","","USBMIDI","USBMSD",""},
+const string labels[10][8] = {{"Sequencer", "Play", "Launch", "DAW","","USBMIDI","USBMSD",""},
 				{"Note", "Play/Pause", "Stop", "Hold","Memory","Channel","Tempo","Scale"},
 				{"Accept", "Octave -", "Octave +", "Cancel","","","",""},
 				{"Save","Shift","Backspace","Load","","Special","Space",""},
@@ -16,7 +16,7 @@ const string labels[10][8] = {{"Program", "Play", "Launch", "DAW","","USBMIDI","
 				{"Play/Pause","Bank -","Bank +","Stop","","","",""}};
 
 const string titles[] = {"Main - Config", 
-				"Programming", 
+				"Edit Seq", 
 				"Edit Note",
 				"Memory",
 				"Save/Load",
