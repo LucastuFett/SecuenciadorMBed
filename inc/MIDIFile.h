@@ -75,7 +75,7 @@ public:
     void saveToFile();
 
     // Read from a file
-    void readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank);
+    void readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank, int8_t &mode, int8_t &tone);
 
     // Get files in a bank folder
     void getFiles(uint8_t bank, string files[12]);

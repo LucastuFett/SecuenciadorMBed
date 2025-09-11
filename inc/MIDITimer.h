@@ -20,6 +20,12 @@ virtual const uint8_t *string_iproduct_desc() override {
         return custom_desc;
 }
 
+    // Start the timer with a specified interval
+    void start(us_timestamp_t interval);
+
+    // Start the timer with saved interval
+    void start();
+
 public:
     // Constructor
     MIDITimer(Callback <void()> timeoutCallback);
@@ -33,12 +39,6 @@ public:
     // Get USB Status
     bool getUSB();
 
-    // Start the timer with a specified interval
-    void start(us_timestamp_t interval);
-
-    // Start the timer with saved interval
-    void start();
-
     // Stop the timer and reset the beat
     void stop();
 
@@ -50,9 +50,6 @@ public:
 
     // Poll the timer to check if the interval has elapsed
     void poll() ;
-
-    // Handle the timeout event
-    void timeout();
 
     // Send the corresponding MIDI messages for the current beat
     void beatPlay();

@@ -4,6 +4,8 @@
 extern uint8_t midiMessages[320][3];
 extern uint8_t offMessages[320][3]; 
 extern int16_t tempo[2];
+extern int8_t mode;
+extern int8_t tone;
 extern string filename;
 extern string renameFilename;
 extern uint8_t bank;
@@ -82,13 +84,21 @@ void MIDIFile::saveToFile(){
 	const uint8_t delta = 24;
 	const uint8_t initMthd[] = {0x4D,0x54,0x68,0x64,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x01,0x00,delta};
     const uint8_t initMtrk[] = {0x4D,0x54,0x72,0x6B};
-	const uint8_t tone = 0; //C
-	const uint8_t mode = 0; //Major
+	const int8_t majorConversion[] = {0,-5,2,-3,4,-1,6,1,-4,3,-2,5};
+	const int8_t minorConversion[] = {-3,4,-1,6,1,-4,3,-2,5,0,-5,2};
+	// Calculate Tone and Mode for MIDI
+	int8_t toneMIDI = 0;
+	int8_t modeMIDI = 0;
+	if (mode < 2) {
+		modeMIDI = mode; // If Major or Minor, copy, else keep Major
+		if (modeMIDI == 0) toneMIDI = majorConversion[tone]; // Major
+		else toneMIDI = minorConversion[tone]; // Minor
+	} 
     // TODO: If tempo is ext
 	uint32_t tempoInt = uint32_t((float(1)/(float(tempo[1])/60))*1000000);
     for (uint8_t b : initMthd) fputc(b,file);
     for (uint8_t b : initMtrk) fputc(b,file);
-    uint8_t mtrkHeader[] = {0x00,0xFF,0x58,0x04,0x04,0x02,0x18,0x08,0x00,0xFF,0x51,0x03,uint8_t((tempoInt >> 16) & 0xFF),uint8_t((tempoInt >> 8) & 0xFF),uint8_t(tempoInt & 0xFF),0x00,0xFF,0x59,0x02, tone, mode};
+    uint8_t mtrkHeader[] = {0x00,0xFF,0x58,0x04,0x04,0x02,0x18,0x08,0x00,0xFF,0x51,0x03,uint8_t((tempoInt >> 16) & 0xFF),uint8_t((tempoInt >> 8) & 0xFF),uint8_t(tempoInt & 0xFF),0x00,0xFF,0x59,0x02, uint8_t(toneMIDI), uint8_t(modeMIDI)};
     for (uint8_t b : mtrkHeader) _mtrk.push_back(b);
 	uint32_t curOff = 0;
 	messagesMutex.lock();
@@ -96,7 +106,6 @@ void MIDIFile::saveToFile(){
 		bool flag = false;
 		for (uint8_t i = 0; i < 10; i++){
 			uint16_t index = (i * 32) + j;
-			//print(messages[index][0])
 			if (offMessages[index][0] != 0){
 				flag = true;
 				if (curOff > 0x7F) calcDelta(curOff);
@@ -145,18 +154,18 @@ void MIDIFile::calcDelta(uint32_t value){
     }
 }
 
-void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank){
+void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank, int8_t &mode, int8_t &tone){
 	FILE *file = fopen(("/fs/" + to_string(bank) + "/" + trim(filename) + ".mid").c_str(),"r");
 	uint16_t delta = 0;
 	uint32_t tempo = 0;
-	uint8_t tone = 0;
-	uint8_t mode = 0;
 	uint16_t type = 0;
 	uint8_t messageCount[32] = {0};
 	uint8_t offMessageCount[32] = {0};
 	uint32_t buffer = get32(file);
 	uint32_t chunklen = 0;
-	
+	const int8_t majorConversion[] = {11,6,1,8,3,10,5,0,7,2,9,4,11,6,1};
+	const int8_t minorConversion[] = {8,3,10,5,0,7,2,9,4,11,6,1,8,3,10};
+
 	// Read MThd
 	if (buffer == 0x4D546864){
 		chunklen = get32(file);
@@ -242,6 +251,7 @@ void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[32
 						case 0x51:{
 							buffer = get32(file);
 							tempo = buffer & 0xFFFFFF;
+							bpm[0] = 0;
 							bpm[1] = uint16_t(60000000 / tempo);
 							chunklen -= 5;
 							break;
@@ -259,10 +269,11 @@ void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[32
 						}
 						case 0x59:{
 							buffer = fgetc(file);
-							buffer = fgetc(file);
-							tone = buffer; // TODO: From 5ths Circle, calculate dif
-							buffer = fgetc(file);
-							mode = buffer;
+							int8_t tempTone = fgetc(file);
+							int8_t tempMode = fgetc(file);
+							mode = tempMode;
+							if (mode == 0) tone = majorConversion[tempTone + 7];
+							else if (mode == 1) tone = minorConversion[tempTone + 7];
 							chunklen -= 4;
 							break;
 						}

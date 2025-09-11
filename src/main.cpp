@@ -148,6 +148,8 @@ uint8_t nextMessages[320][3] = {{0}};
 uint8_t nextOffMessages[320][3] = {{0}}; 
 int16_t nextTempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
 string nextFilename = "";
+int8_t nextTone = 0;
+int8_t nextMode = 0;
 bool queue = false;
 bool channelEnabled[16] = {true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true};
 
@@ -195,12 +197,12 @@ void selectFunc() {
         case PLAY:
             if (timer.isRunning()) {
                 nextFilename = screen.getFilename();
-                midiFile.readFromFile(nextMessages,nextOffMessages,nextTempo,nextFilename,bank);
+                midiFile.readFromFile(nextMessages,nextOffMessages,nextTempo,nextFilename,bank,nextMode,nextTone);
                 queue = true;
             } else {
                 messagesMutex.lock();
                 filename = screen.getFilename();
-                midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank);
+                midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank,mode,tone);
                 buttons.updateStructures();
                 messagesMutex.unlock();
             }
@@ -239,7 +241,7 @@ void function1() {
         case SAVELOAD:
             messagesMutex.lock();
             filename = screen.getFilename();
-            midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank);
+            midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank,mode,tone);
             buttons.updateStructures();
             messagesMutex.unlock();
             mainState = PROG;

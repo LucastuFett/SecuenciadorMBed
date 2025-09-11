@@ -80,15 +80,11 @@ void MIDITimer::poll() {
     us_timestamp_t now = _timer.elapsed_time().count();
     intervalMutex.lock();
     if (now >= _interval) {
-        timeout();
+        _timeoutCallback(); // Call the timeout callback
         _timer.reset();
     }
     intervalMutex.unlock();
     
-}
-
-void MIDITimer::timeout() {
-    _timeoutCallback(); // Call the timeout callback
 }
 
 void MIDITimer::beatPlay() {
