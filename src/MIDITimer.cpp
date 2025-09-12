@@ -134,7 +134,7 @@ void MIDITimer::allNotesOff() {
 }
 
 void MIDITimer::allNotesOff(uint8_t channel) {
-    write(MIDIMessage::AllNotesOff(channel));
+    if(_usb) write(MIDIMessage::AllNotesOff(channel));
 }
 
 void MIDITimer::setInterval(us_timestamp_t interval){
@@ -144,4 +144,8 @@ void MIDITimer::setInterval(us_timestamp_t interval){
     if (_playing) {
         _timer.start();
     }
+}
+
+void MIDITimer::send(uint8_t status, uint8_t data1, uint8_t data2) {
+    if (status & 0xF0 == 0x90 && _usb) write(MIDIMessage::NoteOn(data1, data2, status & 0xF));
 }

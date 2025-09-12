@@ -153,6 +153,15 @@ int8_t nextMode = 0;
 bool queue = false;
 bool channelEnabled[16] = {true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true};
 
+// Launch Mode
+bool launchType = false;
+uint8_t launchMessages[16][3] = {{0}};
+int8_t launchOctave = 3;
+int8_t launchMode = 0;
+int8_t launchTone = 0;
+int8_t launchChn = 0;
+vector <uint16_t> launchPossible[2];
+
 // Methods
 
 //Mutex keysMutex;
@@ -207,6 +216,8 @@ void selectFunc() {
                 messagesMutex.unlock();
             }
             break;
+        case LAUNCH:
+            launchType = !launchType;
         default:
             break;
     }
@@ -261,6 +272,10 @@ void function1() {
                 buttons.updateColors();
             }
             timer.playPause(); // Toggle Play/Pause
+            break;
+        case LAUNCH:
+            launchTone--;
+            if (launchTone < 0) launchTone = 11; // Prevent negative tone
             break;
         default:
             break;
@@ -321,6 +336,7 @@ void function2() {
             if (shift) {
                 if (screen.getCurPointer()) screen.setCurPointer(false);
                 else screen.setCurPointer(true);
+                shift = false;
             } else {
                 if (screen.getUpper()) screen.setUpper(false);
                 else screen.setUpper(true);
@@ -331,6 +347,7 @@ void function2() {
                 mainState = RENAME;
                 renameFilename = screen.getFilename();
                 screen.setEdit(0);
+                shift = false;
             } else {
                 bank --;
                 if (bank < 1) bank = 8; // Wrap around to last bank
@@ -339,6 +356,15 @@ void function2() {
         case PLAY:
             bank --;
             if (bank < 1) bank = 8; // Wrap around to last bank
+            break;
+        case LAUNCH:
+            if (shift){
+                launchChn--;
+                if (launchChn < 0) launchChn = 15; // Prevent negative channel
+                shift = false;
+            }else{
+                launchMode = launchMode ? 0 : 1;
+            }
             break;
         default:
             break;
@@ -408,6 +434,15 @@ void function3() {
             bank ++;
             if (bank > 8) bank = 1; // Wrap around to first bank
             break;
+        case LAUNCH:
+            if (shift){
+                launchChn++;
+                if (launchChn > 15) launchChn = 0; // Prevent >15 channel
+                shift = false;
+            }else{
+                launchMode = launchMode ? 0 : 1;
+            }
+            break;
         default:
             break;
     }
@@ -462,6 +497,10 @@ void function4() {
             beat = 0;
             beatMutex.unlock();
             break;
+        case LAUNCH:
+            launchTone++;
+            if (launchTone > 11) launchTone = 0; // Prevent >11 tone
+            break;
         default:
             break;
     }
@@ -472,6 +511,7 @@ void exitFunc() {
     switch (mainState){
 		case PROG:
         case PLAY:
+        case LAUNCH:
 			mainState = MAIN;
             break;
 		case NOTE:
@@ -534,6 +574,10 @@ void left() {
             channel --;
             if (channel < 0) channel = 15; // Wrap around to last channel
             break;
+        case LAUNCH:
+            launchOctave--;
+            if (launchOctave < 0) launchOctave = 0; // Prevent negative octave
+            break;
         default:
             break;
     }
@@ -571,6 +615,10 @@ void right() {
         case CHANNEL:
             channel ++;
             if (channel > 15) channel = 0; // Wrap around to first channel
+            break;
+        case LAUNCH:
+            launchOctave++;
+            if (launchOctave > 6) launchOctave = 6; // Prevent upper octave
             break;
         default:
             break;

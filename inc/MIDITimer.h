@@ -63,4 +63,6 @@ public:
     // Set Saved Interval
     void setInterval(us_timestamp_t interval);
     
+    // Send Arbitrary MIDI Message
+    void send(uint8_t status, uint8_t data1, uint8_t data2);
 };
