@@ -4,7 +4,7 @@
 
 // Constants
 
-const string labels[10][8] = {{"Sequencer", "Play", "Launch", "DAW","","USBMIDI","USBMSD",""},
+const string labels[12][8] = {{"Sequencer", "Play", "Launch", "DAW","","USBMIDI","USBMSD",""},
 				{"Note", "Play/Pause", "Stop", "Hold","Memory","Channel","Tempo","Scale"},
 				{"Accept", "Octave -", "Octave +", "Cancel","","","",""},
 				{"Save","Shift","Backspace","Load","","Special","Space",""},
@@ -13,9 +13,11 @@ const string labels[10][8] = {{"Sequencer", "Play", "Launch", "DAW","","USBMIDI"
 				{"Accept","","","Cancel","","","",""},
 				{"Accept","Internal","External","Cancel","","Half","Double",""},
 				{"Accept","Mode -","Mode +","Cancel","","","",""},
-				{"Play/Pause","Bank -","Bank +","Stop","","","",""}};
+				{"Play/Pause","Bank -","Bank +","Stop","","","",""},
+                {"Tone -","Mode -","Mode +","Tone +","","Channel -","Channel +",""},
+                {"","","","","","","",""}};
 
-const string titles[] = {"Main - Config", 
+const string titles[] = {"Main", 
 				"Edit Seq", 
 				"Edit Note",
 				"Memory",
@@ -24,7 +26,9 @@ const string titles[] = {"Main - Config",
 				"Edit Channel",
 				"Edit Tempo",
 				"Edit Scale",
-				"Play"};
+				"Play",
+                "Launchpad/Keyboard",
+                "DAW"};
 				
 const char letters[] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
  'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
@@ -57,6 +61,7 @@ class Screen : public SPI_TFT_ILI9341 {
     bool _typeBox = false;
     bool _memBanks = false;
     bool _lastHalf = false;
+    bool _launchpad = false;
     uint8_t _lastBank = 1;
     uint8_t _lastHold = 0;
     int8_t _lastVel = 127;
@@ -94,8 +99,14 @@ class Screen : public SPI_TFT_ILI9341 {
     // Shows or Hides Memory Banks
     void showBanks(bool show);
 
+    // Shows or Hides Launchpad
+    void showLaunchpad(bool show);
+
+    // Updates Launchpad
+    void updateLaunch();
+
     // Get Possible Notes for the current scale
-    void getPossible();
+    void getPossible(vector <uint16_t> possible[2], int8_t tone, int8_t mode);
 
     // Paint Scales and Selected Notes
     void paintScales();

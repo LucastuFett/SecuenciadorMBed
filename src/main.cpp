@@ -381,7 +381,7 @@ void function3() {
                     midiFile.initUSB();
                 }
                 shift = false;
-            } //else mainState = LAUNCH;
+            } else mainState = LAUNCH;
             break;
         case PROG:
             if (shift) {
@@ -451,6 +451,9 @@ void function3() {
 
 void function4() {
     switch (mainState) {
+        case MAIN:
+            mainState = DAW;
+            break;
         case NOTE:
             note = prevNote;
             mainState = PROG;
@@ -512,6 +515,7 @@ void exitFunc() {
 		case PROG:
         case PLAY:
         case LAUNCH:
+        case DAW:
 			mainState = MAIN;
             break;
 		case NOTE:
@@ -778,6 +782,10 @@ int main()
                         buttons.press(num);
                         if(!channelEnabled[num]) timer.allNotesOff(num);
                         screen.updateScreen();
+                    }
+                    else if (!keys[i][j] && lastKeys[i][j] && mainState == LAUNCH) { // Key released
+                        uint8_t num = (i-1) * 4 + j;
+                        buttons.release(num);
                     }
                 }
             }

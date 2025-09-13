@@ -20,6 +20,13 @@ extern uint8_t hold; // Hold state: 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2n
 extern string filename;
 extern string renameFilename;
 extern uint8_t bank;
+extern bool launchType;
+extern int8_t launchTone;
+extern int8_t launchMode;
+extern int8_t launchOctave;
+extern int8_t launchChn;
+extern vector<uint16_t> launchPossible[2];
+extern uint8_t launchMessages[16][3];
 extern MIDIFile midiFile;
 extern Mutex beatsPerToneMutex;
 extern Mutex holdedMutex;
@@ -129,7 +136,7 @@ void Screen::coverTitle() {
 
 void Screen::updateText(){
 	// Display the title
-	const uint16_t titlesOffset[] = {65,0,0,110,110,110,0,0,0,150};
+	const uint16_t titlesOffset[] = {150,0,0,110,110,110,0,0,0,150,0,150};
 	set_font((unsigned char*) Arial24x23);
 	switch(mainState) {
 		case PROG:
@@ -328,7 +335,7 @@ void Screen::updateMenuText(uint8_t menu) {
 	}
 }
 
-void Screen::getPossible() {
+void Screen::getPossible(vector <uint16_t> possible[2], int8_t tone, int8_t mode) {
 	// possible = [[note, note2],[style, style2]]
 	int8_t actKey = tone;
 	_possible[0].clear();
@@ -409,7 +416,7 @@ void Screen::showPiano(bool show){
 		line(166,11,166,202, Cyan);
 
 		// Draw Selected Scale
-		getPossible();
+		getPossible(_possible, tone, mode);
 		paintScales();
 
 	} else if (!show && _piano) {
@@ -775,6 +782,7 @@ void Screen::updateScreen() {
 			showMenu(false);
 			showPiano(false);
 			showBanks(false);
+			showLaunchpad(false);
 			break;
 		case PROG:
 			showTyping(false);
@@ -812,7 +820,7 @@ void Screen::updateScreen() {
 			updateMenuText(2);
 			break;
 		case SCALE:
-			getPossible();
+			getPossible(_possible, tone, mode);
 			paintScales();
 			paintGrid();
 			updateMenuText(3);
@@ -837,6 +845,11 @@ void Screen::updateScreen() {
 		case PLAY:
 			showBanks(true);		
 			updateBanks();	
+		case LAUNCH:
+		case DAW:
+			showLaunchpad(true);
+			updateLaunch();
+			break;
 		default:
 			break;
 	}
@@ -853,4 +866,149 @@ void Screen::showError(string error){
 	set_font((unsigned char*) Arial12x12);
 	ThisThread::sleep_for(10s);
 	fillrect(9,109,311,141,Black);
+}
+
+void Screen::showLaunchpad(bool show){
+	// Implement
+	if (show && !_launchpad){
+		// Draw the 16 buttons
+	} else if (!show && _launchpad) {
+		// Hide the launchpad
+	}
+	_launchpad = show;
+}
+
+void Screen::updateLaunch(){
+	if (mainState == LAUNCH){	
+		//$Launchpad/Channel.text = "Channel " + str(launchChn+1)
+		if (!launchType){	// Launchpad
+			getPossible(launchPossible,launchTone, launchMode);
+			//$Launchpad/Keyboard.set_visible(false)
+			//$Launchpad/Scale.set_visible(true)
+			//$Launchpad/Scale.text = $PianoGrid.tones[launchTone] + " " + scales[launchMode][0]
+			//$Launchpad/Launchpad.set_visible(true)
+
+			for (uint8_t i = 0; i < 8; i ++){
+				if (i == 7){
+					uint8_t noteIndexLow = launchPossible[0][0] + ((launchOctave+1) * 12) + 24;
+					uint8_t noteIndexHigh = launchPossible[0][0] + ((launchOctave+2) * 12) + 24;
+					//get_node("Launchpad/Keys/"+str(i+1)+"/Name").text = $PianoGrid.tones[launchPossible[0][0]] + str(launchOctave+1)
+					launchMessages[i][0] = 0x90 | launchChn;
+					launchMessages[i][1] = noteIndexLow;
+					launchMessages[i][2] = 127;
+					//get_node("Launchpad/Keys/"+str(i+9)+"/Name").text = $PianoGrid.tones[launchPossible[0][0]] + str(launchOctave+2)
+					launchMessages[i+8][0] = 0x90 | launchChn;
+					launchMessages[i+8][1] = noteIndexHigh;
+					launchMessages[i+8][2] = 127;
+				}else{
+					uint8_t noteIndexLow = launchPossible[0][i] + ((launchOctave) * 12) + 24;
+					uint8_t noteIndexHigh = launchPossible[0][i] + ((launchOctave+1) * 12) + 24;
+					//get_node("Launchpad/Keys/"+str(i+1)+"/Name").text = $PianoGrid.tones[launchPossible[0][i]] + str(launchOctave)
+					launchMessages[i][0] = 0x90 | launchChn;
+					launchMessages[i][1] = noteIndexLow;
+					launchMessages[i][2] = 127;
+					//get_node("Launchpad/Keys/"+str(i+9)+"/Name").text = $PianoGrid.tones[launchPossible[0][i]] + str(launchOctave+1)
+					launchMessages[i+8][0] = 0x90 | launchChn;
+					launchMessages[i+8][1] = noteIndexHigh;
+					launchMessages[i+8][2] = 127;			}
+			}
+		}else{	// Keyboard
+			//$Launchpad/Keyboard.set_visible(true)
+			//$Launchpad/Scale.set_visible(false)
+			//$Launchpad/Launchpad.set_visible(false)
+			//$"Launchpad/Keys/1".remove_theme_stylebox_override("panel")
+			//$"Launchpad/Keys/4".remove_theme_stylebox_override("panel")
+			//$"Launchpad/Keys/8".remove_theme_stylebox_override("panel")
+			
+			//$"Launchpad/Keys/1/Name".text = ""
+			//$"Launchpad/Keys/2/Name".text = "C#" + str(launchOctave)
+			//$"Launchpad/Keys/3/Name".text = "D#" + str(launchOctave)
+			//$"Launchpad/Keys/4/Name".text = ""
+			//$"Launchpad/Keys/5/Name".text = "F#" + str(launchOctave)
+			//$"Launchpad/Keys/6/Name".text = "G#" + str(launchOctave)
+			//$"Launchpad/Keys/7/Name".text = "A#" + str(launchOctave)
+			//$"Launchpad/Keys/8/Name".text = ""
+			
+			//$"Launchpad/Keys/9/Name".text = "C" + str(launchOctave)
+			//$"Launchpad/Keys/10/Name".text = "D" + str(launchOctave)
+			//$"Launchpad/Keys/11/Name".text = "E" + str(launchOctave)
+			//$"Launchpad/Keys/12/Name".text = "F" + str(launchOctave)
+			//$"Launchpad/Keys/13/Name".text = "G" + str(launchOctave)
+			//$"Launchpad/Keys/14/Name".text = "A" + str(launchOctave)
+			//$"Launchpad/Keys/15/Name".text = "B" + str(launchOctave)
+			//$"Launchpad/Keys/16/Name".text = "C" + str(launchOctave+1)
+			
+			launchMessages[0][0] = 0;
+			launchMessages[0][1] = 0;
+			launchMessages[0][2] = 0;
+
+			launchMessages[1][0] = 0x90 | launchChn;
+			launchMessages[1][1] = 1 + ((launchOctave) * 12) + 24;
+			launchMessages[1][2] = 127;
+
+			launchMessages[2][0] = 0x90 | launchChn;
+			launchMessages[2][1] = 3 + ((launchOctave) * 12) + 24;
+			launchMessages[2][2] = 127;
+
+			launchMessages[3][0] = 0;
+			launchMessages[3][1] = 0;
+			launchMessages[3][2] = 0;
+
+			launchMessages[4][0] = 0x90 | launchChn;
+			launchMessages[4][1] = 6 + ((launchOctave) * 12) + 24;
+			launchMessages[4][2] = 127;
+
+			launchMessages[5][0] = 0x90 | launchChn;
+			launchMessages[5][1] = 8 + ((launchOctave) * 12) + 24;
+			launchMessages[5][2] = 127;
+
+			launchMessages[6][0] = 0x90 | launchChn;
+			launchMessages[6][1] = 10 + ((launchOctave) * 12) + 24;
+			launchMessages[6][2] = 127;
+
+			launchMessages[7][0] = 0;
+			launchMessages[7][1] = 0;
+			launchMessages[7][2] = 0;
+
+			launchMessages[8][0] = 0x90 | launchChn;
+			launchMessages[8][1] = 0 + ((launchOctave) * 12) + 24;
+			launchMessages[8][2] = 127;
+
+			launchMessages[9][0] = 0x90 | launchChn;
+			launchMessages[9][1] = 2 + ((launchOctave) * 12) + 24;
+			launchMessages[9][2] = 127;
+
+			launchMessages[10][0] = 0x90 | launchChn;
+			launchMessages[10][1] = 4 + ((launchOctave) * 12) + 24;
+			launchMessages[10][2] = 127;
+
+			launchMessages[11][0] = 0x90 | launchChn;
+			launchMessages[11][1] = 5 + ((launchOctave) * 12) + 24;
+			launchMessages[11][2] = 127;
+
+			launchMessages[12][0] = 0x90 | launchChn;
+			launchMessages[12][1] = 7 + ((launchOctave) * 12) + 24;
+			launchMessages[12][2] = 127;
+
+			launchMessages[13][0] = 0x90 | launchChn;
+			launchMessages[13][1] = 9 + ((launchOctave) * 12) + 24;
+			launchMessages[13][2] = 127;
+
+			launchMessages[14][0] = 0x90 | launchChn;
+			launchMessages[14][1] = 11 + ((launchOctave) * 12) + 24;
+			launchMessages[14][2] = 127;
+
+			launchMessages[15][0] = 0x90 | launchChn;
+			launchMessages[15][1] = 0 + ((launchOctave+1) * 12) + 24;
+			launchMessages[15][2] = 127;
+
+		}
+	} else if(mainState == DAW){
+		for (uint8_t i = 0; i < 16; i ++){
+			//get_node("Launchpad/Keys/"+str(i+1)+"/Name").text = str(102 + i)
+			launchMessages[i][0] = 0xB0;
+			launchMessages[i][1] = 102 + i;
+			launchMessages[i][2] = 127;
+		}
+	}
 }

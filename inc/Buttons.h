@@ -60,7 +60,7 @@
 
 class Buttons {
     uint8_t _holdTemporary;
-    
+    bool _DAWSent[16];
 public:
     // Constructor
     Buttons();

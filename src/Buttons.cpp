@@ -38,7 +38,9 @@ Buttons::Buttons(){
 	for (uint8_t i = 0; i < 16; i++) {
 		ledData[i] = 0x00000000;
 		lastLedData[i] = 0x00000000;
+		_DAWSent[i] = false;
 	}
+
 }
 
 void Buttons::press(uint8_t num){
@@ -193,16 +195,17 @@ void Buttons::press(uint8_t num){
 		case LAUNCH:
 			if (launchMessages[num][0] != 0) timer.send(launchMessages[num][0], launchMessages[num][1], launchMessages[num][2]);
 			break;
+		case DAW:
+			if (!_DAWSent[num]) timer.send(launchMessages[num][0], launchMessages[num][1], launchMessages[num][2]);
+			else timer.send(launchMessages[num][0], launchMessages[num][1], 0);
+			_DAWSent[num] = !_DAWSent[num];
+			break;
 	}
 	updateColors();
 }
 
 void Buttons::release(uint8_t num){
-	switch(mainState){
-		case LAUNCH:
-			if (launchMessages[num][0] != 0) timer.send(launchMessages[num][0], launchMessages[num][1], 0);
-			break;
-	}
+	if (launchMessages[num][0] != 0) timer.send(launchMessages[num][0], launchMessages[num][1], 0);
 	updateColors();
 }
 
@@ -275,6 +278,9 @@ void Buttons::updateColors(){
 			break;
 		case LAUNCH:
 			for (uint8_t i = 0; i < 16; i++) if(keys[(i/4) + 1][i%4]) ledData[i] = launchColorsGRB[i];
+			break;
+		case DAW:
+			for (uint8_t i = 0; i < 16; i++) if(_DAWSent[i]) ledData[i] = launchColorsGRB[i];
 			break;
 	}
 	
