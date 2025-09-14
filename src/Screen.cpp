@@ -31,6 +31,9 @@ extern MIDIFile midiFile;
 extern Mutex beatsPerToneMutex;
 extern Mutex holdedMutex;
 
+// Public Functions
+// General Functions
+
 Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char *name)
     : SPI_TFT_ILI9341(mosi, miso, sclk, cs, reset, dc, name) {
 		_typePointer = 0;
@@ -58,7 +61,7 @@ void Screen::init() {
 	cls();
 	// Set the font and display the title
 	set_font((unsigned char*) Arial24x23);
-	locate(65,5);
+	locate(130,5);
 	puts(titles[mainState].c_str());
 
 	// Draw the main state buttons
@@ -104,29 +107,237 @@ void Screen::init() {
 	foreground(White);
 }
 
+void Screen::left() {
+	switch (mainState) {
+		case MEMORY:
+		case RENAME:
+			if (_edit == 1){
+				_typePointer --;
+				if (_typePointer < 0) _typePointer = 0;
+			}
+			else if (_edit == 2){
+				if (_curPointer == 0){
+					_letterPointer --;
+					if (_letterPointer < 0)	_letterPointer = 25;
+				}else if (_curPointer == 1){
+					_specialPointer --;
+					if (_specialPointer < 0) _specialPointer = 20;
+				}
+			}
+			break;
+		case SAVELOAD:
+		case PLAY:
+			_selectedFile --;
+			if (_selectedFile < 0) _selectedFile = 11;
+			break;
+		default:
+			break;
+	}
+}
+
+void Screen::right() {
+	switch (mainState) {
+		case MEMORY:
+		case RENAME:
+			if (_edit == 1){
+				_typePointer ++;
+				if (_typePointer > 17 ) _typePointer = 17;
+			}
+			else if (_edit == 2){
+				if (_curPointer == 0){
+					_letterPointer ++;
+					if (_letterPointer > 25) _letterPointer = 0;
+				}else if (_curPointer == 1){
+					_specialPointer ++;
+					if (_specialPointer > 20) _specialPointer = 0;
+				}
+			}
+		break;
+		case SAVELOAD:
+		case PLAY:
+			_selectedFile ++;
+			if (_selectedFile > 11) _selectedFile = 0;
+			break;
+		default:
+			break;
+	}
+}
+
+void Screen::updateScreen() {
+	if (_lastState != mainState) coverTitle();
+	switch (mainState) {
+		case MAIN:
+			showMenu(false);
+			showPiano(false);
+			showBanks(false);
+			showLaunchpad(false);
+			break;
+		case PROG:
+			showTyping(false);
+			showBanks(false);
+			showMenu(true);
+			showPiano(true);
+			paintGrid();
+			if (velocity != _lastVel) {
+				updateMenuText(4);
+				_lastVel = velocity;
+			}
+			if (half != _lastHalf){
+				updateMenuText(5);
+				_lastHalf = half;
+			}
+			if (hold != _lastHold){
+				updateHold();
+				_lastHold = hold;
+			}
+			if (mode32 != _lastMode32){
+				updateMenuText(6);
+				_lastMode32 = mode32;
+			}
+			break;
+		case NOTE:
+			paintScales();
+			paintGrid();
+			break;
+		case CHANNEL:
+			updateMenuText(1);
+			paintGrid();
+			break;
+		case TEMPO:
+			// When canceling, does not update
+			updateMenuText(2);
+			break;
+		case SCALE:
+			getPossible(_possible, tone, mode);
+			paintScales();
+			paintGrid();
+			updateMenuText(3);
+			break;
+		case MEMORY:
+			showMenu(false);
+			showPiano(false);
+			showBanks(false);
+			showTyping(true);
+			updateMemoryText();
+			break;
+		case SAVELOAD:
+			showTyping(false);
+			showBanks(true);
+			updateBanks();
+			break;
+		case RENAME:
+			showBanks(false);
+			showTyping(true);
+			updateMemoryText();
+			break;
+		case PLAY:
+			showBanks(true);		
+			updateBanks();	
+			break;
+		case LAUNCH:
+		case DAW:
+			showLaunchpad(true);
+			updateLaunch();
+			break;
+		default:
+			break;
+	}
+	if (_lastState != mainState) updateText();
+	_lastState = mainState;
+}
+
+void Screen::showError(string error){
+	set_font((unsigned char*) Arial16x16);
+	fillrect(10,100,310,140,Black);
+	rect(9,109,311,141,Red);
+	locate(15,112);
+	puts(error.c_str());
+	set_font((unsigned char*) Arial12x12);
+	ThisThread::sleep_for(10s);
+	fillrect(9,109,311,141,Black);
+}
+
+// Memory Functions
+
+void Screen::selectLetter() {
+	if (_edit == 1){
+		_edit = 2;
+		const char* findLowerPtr = std::find(letters, letters + 26, _typing[_typePointer]);
+		int findLower = (findLowerPtr != letters + 26) ? (findLowerPtr - letters) : -1;
+		const char* findUpperPtr = std::find(shLetters, shLetters + 26, _typing[_typePointer]);
+		int findUpper = (findUpperPtr != shLetters + 26) ? (findUpperPtr - shLetters) : -1;
+		const char* findSpecialPtr = std::find(special, special + 21, _typing[_typePointer]);
+		int findSpecial = (findSpecialPtr != special + 21) ? (findSpecialPtr - special) : -1;
+		if (findLower != -1) {
+			_letterPointer = findLower;
+			_curPointer = 0;
+			_upper = 0;
+		}
+		if (findUpper != -1) {
+			_letterPointer = findUpper;
+			_curPointer = 0;
+			_upper = 1;
+		}
+		if (findSpecial != -1) {
+			_specialPointer = findSpecial;
+			_curPointer = 1;
+		}
+	}else if (_edit == 2){
+		_edit = 1;
+		_letterPointer = 0;
+		_specialPointer = 0;
+		_curPointer = 0;
+		_upper = 0;
+	}
+
+}
+
+string Screen::getFilename() {
+	if (mainState == PLAY) _currentFile = _selectedFile;
+	return _files[_selectedFile];
+}
+
+string Screen::saveFilename() {
+	string name = filename;
+	size_t padding = 18 - filename.length();
+	name.append(padding,' ');
+	for (uint8_t i = 0; i < 18; i++) name[i] = _typing[i];
+	_edit = 0;
+	_letterPointer = 0;
+	_specialPointer = 0;
+	_curPointer = 0;
+	_upper = 0;
+	return name;
+}
+
+// Getters and Setters
+
 bool Screen::getCurPointer() {
 	return _curPointer;
-}
-
-bool Screen::getUpper() {
-	return _upper;
-}
-
-void Screen::setEdit(int8_t edit){
-	_edit = edit;
 }
 
 void Screen::setCurPointer(bool curPointer){
 	_curPointer = curPointer;
 }
 
+bool Screen::getUpper() {
+	return _upper;
+}
+
 void Screen::setUpper(bool upper){
 	_upper = upper;
+}
+
+void Screen::setEdit(int8_t edit){
+	_edit = edit;
 }
 
 void Screen::setTyping(char type){
 	_typing[_typePointer] = type;
 }
+
+// Private Functions
+// General Functions
 
 void Screen::coverTitle() {
 	// Cover the previous title
@@ -136,7 +347,7 @@ void Screen::coverTitle() {
 
 void Screen::updateText(){
 	// Display the title
-	const uint16_t titlesOffset[] = {150,0,0,110,110,110,0,0,0,150,0,150};
+	const uint16_t titlesOffset[] = {130,0,0,110,110,110,0,0,0,150,15,135};
 	set_font((unsigned char*) Arial24x23);
 	switch(mainState) {
 		case PROG:
@@ -335,14 +546,16 @@ void Screen::updateMenuText(uint8_t menu) {
 	}
 }
 
+// Piano Functions
+
 void Screen::getPossible(vector <uint16_t> possible[2], int8_t tone, int8_t mode) {
 	// possible = [[note, note2],[style, style2]]
 	int8_t actKey = tone;
-	_possible[0].clear();
-	_possible[1].clear();
+	possible[0].clear();
+	possible[1].clear();
 	
-	_possible[0].push_back(tone);
-	_possible[1].push_back(Magenta);
+	possible[0].push_back(tone);
+	possible[1].push_back(Magenta);
 
 	for (uint8_t i = 0; i < 12; i++) {
 		if (scales[mode].intervals[i] == 0) break;
@@ -351,8 +564,8 @@ void Screen::getPossible(vector <uint16_t> possible[2], int8_t tone, int8_t mode
 		if (actKey > 11) {
 			actKey -= 12;
 		}
-		_possible[0].push_back(actKey);
-		_possible[1].push_back(Blue);
+		possible[0].push_back(actKey);
+		possible[1].push_back(Blue);
 
 	}
 }
@@ -521,167 +734,10 @@ void Screen::updateHold() {
 			locate(245,195);
 			puts("2nd Value");
 			break;			
-	}
-}
-
-void Screen::left() {
-	switch (mainState) {
-		case MEMORY:
-		case RENAME:
-			if (_edit == 1){
-				_typePointer --;
-				if (_typePointer < 0) _typePointer = 0;
-			}
-			else if (_edit == 2){
-				if (_curPointer == 0){
-					_letterPointer --;
-					if (_letterPointer < 0)	_letterPointer = 25;
-				}else if (_curPointer == 1){
-					_specialPointer --;
-					if (_specialPointer < 0) _specialPointer = 20;
-				}
-			}
-			break;
-		case SAVELOAD:
-		case PLAY:
-			_selectedFile --;
-			if (_selectedFile < 0) _selectedFile = 11;
-			break;
-		default:
-			break;
-	}
-}
-
-void Screen::right() {
-	switch (mainState) {
-		case MEMORY:
-		case RENAME:
-			if (_edit == 1){
-				_typePointer ++;
-				if (_typePointer > 17 ) _typePointer = 17;
-			}
-			else if (_edit == 2){
-				if (_curPointer == 0){
-					_letterPointer ++;
-					if (_letterPointer > 25) _letterPointer = 0;
-				}else if (_curPointer == 1){
-					_specialPointer ++;
-					if (_specialPointer > 20) _specialPointer = 0;
-				}
-			}
-		break;
-		case SAVELOAD:
-		case PLAY:
-			_selectedFile ++;
-			if (_selectedFile > 11) _selectedFile = 0;
-			break;
-		default:
-			break;
-	}
-}
-
-void Screen::showTyping(bool show){
-	
-	if (show && !_typeBox) {
-		rect(5,50,314,70,Cyan);
-		fillrect(6,51,313,69,Black);
-	} else if (!show && _typeBox) {
-		fillrect(5,50,314,70, Black); // Hide Typing Box
-	}
-	_typeBox = show;
-}
-
-void Screen::showBanks(bool show){
-	
-	if (show && !_memBanks) {
-		set_font((unsigned char*) Arial16x16);
-		locate(20,12);
-		puts(("Bank " + to_string(bank)).c_str());
-		_lastBank = bank;
-		set_font((unsigned char*) Arial12x12);
-		midiFile.getFiles(bank, _files);
-		for (uint8_t i = 0; i < 12; i ++){
-			if (i == _selectedFile) _bkgColors[i] = Blue;
-			else _bkgColors[i] = DarkGrey;
 		}
-		for (uint8_t i = 0; i < 3; i ++){
-			for (uint8_t j = 0; j < 4; j ++){
-				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, _bkgColors[i*4 + j]);
-				if (_files[i*4 + j] != ""){
-					background(_bkgColors[i*4 + j]);
-					string name = _files[i * 4 + j];
-					locate(17 + j * 74, 43 + i * 54);
-					puts(name.substr(0, 7).c_str());
-					locate(17 + j * 74, 59 + i * 54);
-					puts(name.length() > 7 ? name.substr(7, 7).c_str() : "");
-					locate(30 + j * 74, 75 + i * 54);
-					puts(name.length() > 14 ? name.substr(14).c_str() : "");
-					background(Black);
-				}
-				
-			}
-		}
-		copy(begin(_files), end(_files), _lastFiles);
-		memcpy(_lastBkgColors,_bkgColors, sizeof(_bkgColors));
-		_lastSelectedFile = _selectedFile;
-		_lastCurrentFile = _currentFile;
-	} else if (!show && _memBanks) {
-		fillrect(10, 40, 310, 200, Black); // Hide Banks Box
-		fillrect(20, 10, 113, 30, Black); // Hide Bank Number
-	}
-	_memBanks = show;
 }
 
-void Screen::selectLetter() {
-	if (_edit == 1){
-		_edit = 2;
-		const char* findLowerPtr = std::find(letters, letters + 26, _typing[_typePointer]);
-		int findLower = (findLowerPtr != letters + 26) ? (findLowerPtr - letters) : -1;
-		const char* findUpperPtr = std::find(shLetters, shLetters + 26, _typing[_typePointer]);
-		int findUpper = (findUpperPtr != shLetters + 26) ? (findUpperPtr - shLetters) : -1;
-		const char* findSpecialPtr = std::find(special, special + 21, _typing[_typePointer]);
-		int findSpecial = (findSpecialPtr != special + 21) ? (findSpecialPtr - special) : -1;
-		if (findLower != -1) {
-			_letterPointer = findLower;
-			_curPointer = 0;
-			_upper = 0;
-		}
-		if (findUpper != -1) {
-			_letterPointer = findUpper;
-			_curPointer = 0;
-			_upper = 1;
-		}
-		if (findSpecial != -1) {
-			_specialPointer = findSpecial;
-			_curPointer = 1;
-		}
-	}else if (_edit == 2){
-		_edit = 1;
-		_letterPointer = 0;
-		_specialPointer = 0;
-		_curPointer = 0;
-		_upper = 0;
-	}
-
-}
-
-string Screen::getFilename() {
-	if (mainState == PLAY) _currentFile = _selectedFile;
-	return _files[_selectedFile];
-}
-
-string Screen::saveFilename() {
-	string name = filename;
-	size_t padding = 18 - filename.length();
-	name.append(padding,' ');
-	for (uint8_t i = 0; i < 18; i++) name[i] = _typing[i];
-	_edit = 0;
-	_letterPointer = 0;
-	_specialPointer = 0;
-	_curPointer = 0;
-	_upper = 0;
-	return name;
-}
+// Memory Functions
 
 void Screen::updateMemoryText() {
 	string name = "";
@@ -775,168 +831,176 @@ void Screen::updateBanks() {
 
 }
 
-void Screen::updateScreen() {
-	if (_lastState != mainState) coverTitle();
-	switch (mainState) {
-		case MAIN:
-			showMenu(false);
-			showPiano(false);
-			showBanks(false);
-			showLaunchpad(false);
-			break;
-		case PROG:
-			showTyping(false);
-			showBanks(false);
-			showMenu(true);
-			showPiano(true);
-			paintGrid();
-			if (velocity != _lastVel) {
-				updateMenuText(4);
-				_lastVel = velocity;
-			}
-			if (half != _lastHalf){
-				updateMenuText(5);
-				_lastHalf = half;
-			}
-			if (hold != _lastHold){
-				updateHold();
-				_lastHold = hold;
-			}
-			if (mode32 != _lastMode32){
-				updateMenuText(6);
-				_lastMode32 = mode32;
-			}
-			break;
-		case NOTE:
-			paintScales();
-			paintGrid();
-			break;
-		case CHANNEL:
-			updateMenuText(1);
-			paintGrid();
-			break;
-		case TEMPO:
-			// When canceling, does not update
-			updateMenuText(2);
-			break;
-		case SCALE:
-			getPossible(_possible, tone, mode);
-			paintScales();
-			paintGrid();
-			updateMenuText(3);
-			break;
-		case MEMORY:
-			showMenu(false);
-			showPiano(false);
-			showBanks(false);
-			showTyping(true);
-			updateMemoryText();
-			break;
-		case SAVELOAD:
-			showTyping(false);
-			showBanks(true);
-			updateBanks();
-			break;
-		case RENAME:
-			showBanks(false);
-			showTyping(true);
-			updateMemoryText();
-			break;
-		case PLAY:
-			showBanks(true);		
-			updateBanks();	
-		case LAUNCH:
-		case DAW:
-			showLaunchpad(true);
-			updateLaunch();
-			break;
-		default:
-			break;
+void Screen::showTyping(bool show){
+	
+	if (show && !_typeBox) {
+		rect(5,50,314,70,Cyan);
+		fillrect(6,51,313,69,Black);
+	} else if (!show && _typeBox) {
+		fillrect(5,50,314,70, Black); // Hide Typing Box
 	}
-	if (_lastState != mainState) updateText();
-	_lastState = mainState;
+	_typeBox = show;
 }
 
-void Screen::showError(string error){
-	set_font((unsigned char*) Arial16x16);
-	fillrect(10,100,310,140,Black);
-	rect(9,109,311,141,Red);
-	locate(15,112);
-	puts(error.c_str());
-	set_font((unsigned char*) Arial12x12);
-	ThisThread::sleep_for(10s);
-	fillrect(9,109,311,141,Black);
+void Screen::showBanks(bool show){
+	
+	if (show && !_memBanks) {
+		set_font((unsigned char*) Arial16x16);
+		locate(20,12);
+		puts(("Bank " + to_string(bank)).c_str());
+		_lastBank = bank;
+		set_font((unsigned char*) Arial12x12);
+		midiFile.getFiles(bank, _files);
+		for (uint8_t i = 0; i < 12; i ++){
+			if (i == _selectedFile) _bkgColors[i] = Blue;
+			else _bkgColors[i] = DarkGrey;
+		}
+		for (uint8_t i = 0; i < 3; i ++){
+			for (uint8_t j = 0; j < 4; j ++){
+				fillrect(14 + j*74, 40 + i*54, 84 + j*74, 90 + i*54, _bkgColors[i*4 + j]);
+				if (_files[i*4 + j] != ""){
+					background(_bkgColors[i*4 + j]);
+					string name = _files[i * 4 + j];
+					locate(17 + j * 74, 43 + i * 54);
+					puts(name.substr(0, 7).c_str());
+					locate(17 + j * 74, 59 + i * 54);
+					puts(name.length() > 7 ? name.substr(7, 7).c_str() : "");
+					locate(30 + j * 74, 75 + i * 54);
+					puts(name.length() > 14 ? name.substr(14).c_str() : "");
+					background(Black);
+				}
+				
+			}
+		}
+		copy(begin(_files), end(_files), _lastFiles);
+		memcpy(_lastBkgColors,_bkgColors, sizeof(_bkgColors));
+		_lastSelectedFile = _selectedFile;
+		_lastCurrentFile = _currentFile;
+	} else if (!show && _memBanks) {
+		fillrect(10, 40, 310, 200, Black); // Hide Banks Box
+		fillrect(20, 10, 113, 30, Black); // Hide Bank Number
+	}
+	_memBanks = show;
 }
+
+// Launchpad Functions
 
 void Screen::showLaunchpad(bool show){
 	// Implement
 	if (show && !_launchpad){
-		// Draw the 16 buttons
+		for (uint8_t i = 0; i < 2; i ++){
+			for (uint8_t j = 0; j < 8; j ++){
+				fillrect(6 + j*39, 97 + i*54, 41 + j*39, 147 + i*54, launchColorsScr[i*8 + j]);
+			}
+		}	
 	} else if (!show && _launchpad) {
-		// Hide the launchpad
+		fillrect(5, 40, 320, 205, Black); // Hide Launchpad Box
 	}
 	_launchpad = show;
 }
 
 void Screen::updateLaunch(){
 	if (mainState == LAUNCH){	
-		//$Launchpad/Channel.text = "Channel " + str(launchChn+1)
+		if (_lastLaunchChn != launchChn){
+			locate(120,40);
+			set_font((unsigned char*) Arial16x16);
+			puts(("Channel " + to_string(launchChn+1)).c_str());
+			set_font((unsigned char*) Arial12x12);
+			_lastLaunchChn = launchChn;
+		}
 		if (!launchType){	// Launchpad
 			getPossible(launchPossible,launchTone, launchMode);
-			//$Launchpad/Keyboard.set_visible(false)
-			//$Launchpad/Scale.set_visible(true)
-			//$Launchpad/Scale.text = $PianoGrid.tones[launchTone] + " " + scales[launchMode][0]
-			//$Launchpad/Launchpad.set_visible(true)
+			if (_lastLaunchType != launchType){
+				fillrect(120,65,320,85,Black);
+				locate(200,65);
+				set_font((unsigned char*) Arial16x16);
+				puts("Launchpad");
+				set_font((unsigned char*) Arial12x12);
+				
+			}
+			if (_lastLaunchTone != launchTone || _lastLaunchMode != launchMode || _lastLaunchType != launchType){
+				fillrect(40,65,160,85,Black);
+				locate(40,65);
+				set_font((unsigned char*) Arial16x16);
+				puts((tones[launchTone] + " " + scales[launchMode].name).c_str());
+				set_font((unsigned char*) Arial12x12);
+			}
+			if (_lastLaunchTone != launchTone || _lastLaunchMode != launchMode || _lastLaunchOctave != launchOctave || _lastLaunchType != launchType){
+				for (uint8_t i = 0; i < 2; i ++){
+					for (uint8_t j = 0; j < 8; j ++){
+						fillrect(6 + j*39, 97 + i*54, 41 + j*39, 147 + i*54, launchColorsScr[i*8 + j]);
+					}
+				}	
+				for (uint8_t i = 0; i < 8; i ++){
+					uint8_t noteIndexLow;
+					uint8_t noteIndexHigh;
+					if (i == 7){
+						noteIndexLow = launchPossible[0][0] + ((launchOctave+1) * 12) + 24;
+						noteIndexHigh = launchPossible[0][0] + ((launchOctave+2) * 12) + 24;
 
-			for (uint8_t i = 0; i < 8; i ++){
-				if (i == 7){
-					uint8_t noteIndexLow = launchPossible[0][0] + ((launchOctave+1) * 12) + 24;
-					uint8_t noteIndexHigh = launchPossible[0][0] + ((launchOctave+2) * 12) + 24;
-					//get_node("Launchpad/Keys/"+str(i+1)+"/Name").text = $PianoGrid.tones[launchPossible[0][0]] + str(launchOctave+1)
+						background(launchColorsScr[i]);
+						locate(8 + i*39, 117);
+						puts((tones[launchPossible[0][0]] + to_string(launchOctave + 1)).c_str());
+
+						background(launchColorsScr[i+8]);
+						locate(8 + i*39, 171);
+						puts((tones[launchPossible[0][0]] + to_string(launchOctave + 2)).c_str());
+						background(Black);
+					}else{
+						noteIndexLow = launchPossible[0][i] + ((launchOctave) * 12) + 24;
+						noteIndexHigh = launchPossible[0][i] + ((launchOctave+1) * 12) + 24;
+
+						background(launchColorsScr[i]);
+						locate(8 + i*39, 117);
+						puts((tones[launchPossible[0][i]] + to_string(launchOctave)).c_str());
+
+						background(launchColorsScr[i+8]);
+						locate(8 + i*39, 171);
+						puts((tones[launchPossible[0][i]] + to_string(launchOctave + 1)).c_str());
+						background(Black);		
+					}
 					launchMessages[i][0] = 0x90 | launchChn;
 					launchMessages[i][1] = noteIndexLow;
 					launchMessages[i][2] = 127;
-					//get_node("Launchpad/Keys/"+str(i+9)+"/Name").text = $PianoGrid.tones[launchPossible[0][0]] + str(launchOctave+2)
 					launchMessages[i+8][0] = 0x90 | launchChn;
 					launchMessages[i+8][1] = noteIndexHigh;
 					launchMessages[i+8][2] = 127;
-				}else{
-					uint8_t noteIndexLow = launchPossible[0][i] + ((launchOctave) * 12) + 24;
-					uint8_t noteIndexHigh = launchPossible[0][i] + ((launchOctave+1) * 12) + 24;
-					//get_node("Launchpad/Keys/"+str(i+1)+"/Name").text = $PianoGrid.tones[launchPossible[0][i]] + str(launchOctave)
-					launchMessages[i][0] = 0x90 | launchChn;
-					launchMessages[i][1] = noteIndexLow;
-					launchMessages[i][2] = 127;
-					//get_node("Launchpad/Keys/"+str(i+9)+"/Name").text = $PianoGrid.tones[launchPossible[0][i]] + str(launchOctave+1)
-					launchMessages[i+8][0] = 0x90 | launchChn;
-					launchMessages[i+8][1] = noteIndexHigh;
-					launchMessages[i+8][2] = 127;			}
+				}		
+				_lastLaunchTone = launchTone;
+				_lastLaunchMode = launchMode;
+				_lastLaunchOctave = launchOctave;
+				_lastLaunchType = launchType;
 			}
+
+			
 		}else{	// Keyboard
-			//$Launchpad/Keyboard.set_visible(true)
-			//$Launchpad/Scale.set_visible(false)
-			//$Launchpad/Launchpad.set_visible(false)
-			//$"Launchpad/Keys/1".remove_theme_stylebox_override("panel")
-			//$"Launchpad/Keys/4".remove_theme_stylebox_override("panel")
-			//$"Launchpad/Keys/8".remove_theme_stylebox_override("panel")
-			
-			//$"Launchpad/Keys/1/Name".text = ""
-			//$"Launchpad/Keys/2/Name".text = "C#" + str(launchOctave)
-			//$"Launchpad/Keys/3/Name".text = "D#" + str(launchOctave)
-			//$"Launchpad/Keys/4/Name".text = ""
-			//$"Launchpad/Keys/5/Name".text = "F#" + str(launchOctave)
-			//$"Launchpad/Keys/6/Name".text = "G#" + str(launchOctave)
-			//$"Launchpad/Keys/7/Name".text = "A#" + str(launchOctave)
-			//$"Launchpad/Keys/8/Name".text = ""
-			
-			//$"Launchpad/Keys/9/Name".text = "C" + str(launchOctave)
-			//$"Launchpad/Keys/10/Name".text = "D" + str(launchOctave)
-			//$"Launchpad/Keys/11/Name".text = "E" + str(launchOctave)
-			//$"Launchpad/Keys/12/Name".text = "F" + str(launchOctave)
-			//$"Launchpad/Keys/13/Name".text = "G" + str(launchOctave)
-			//$"Launchpad/Keys/14/Name".text = "A" + str(launchOctave)
-			//$"Launchpad/Keys/15/Name".text = "B" + str(launchOctave)
-			//$"Launchpad/Keys/16/Name".text = "C" + str(launchOctave+1)
+			if (_lastLaunchType != launchType){
+				fillrect(40,65,320,85,Black);
+				locate(120,65);
+				set_font((unsigned char*) Arial16x16);
+				puts("Keyboard");
+				set_font((unsigned char*) Arial12x12);
+
+				fillrect(6,97,41,147,Black);
+				fillrect(123,97,158,147,Black);
+				fillrect(279,97,314,147,Black);
+
+			}
+			const string keyLabels[] = {"","C#","D#","","F#","G#","A#","","C","D","E","F","G","A","B","C"};
+			if (_lastLaunchOctave != launchOctave || _lastLaunchType != launchType){
+				for (uint8_t i = 0; i < 8; i ++){
+					background(launchColorsScr[i]);
+					locate(8 + i*39, 117);
+					if(keyLabels[i] != "") puts((keyLabels[i] + to_string(launchOctave)).c_str());
+
+					background(launchColorsScr[i+8]);
+					locate(8 + i*39, 171);
+					if (i == 7) puts((keyLabels[i+8] + to_string(launchOctave + 1)).c_str());
+					else puts((keyLabels[i+8] + to_string(launchOctave)).c_str());
+					background(Black);		
+				}
+				_lastLaunchType = launchType;
+			}
 			
 			launchMessages[0][0] = 0;
 			launchMessages[0][1] = 0;
@@ -1004,11 +1068,25 @@ void Screen::updateLaunch(){
 
 		}
 	} else if(mainState == DAW){
-		for (uint8_t i = 0; i < 16; i ++){
-			//get_node("Launchpad/Keys/"+str(i+1)+"/Name").text = str(102 + i)
+		for (uint8_t i = 0; i < 8; i ++){
+
+			background(launchColorsScr[i]);
+			locate(8 + i*39, 117);
+			puts(to_string(102 + i).c_str());
+
+			background(launchColorsScr[i+8]);
+			locate(8 + i*39, 171);
+			puts(to_string(102 + i+8).c_str());
+			background(Black);		
+
 			launchMessages[i][0] = 0xB0;
 			launchMessages[i][1] = 102 + i;
 			launchMessages[i][2] = 127;
+
+			launchMessages[i+8][0] = 0xB0;
+			launchMessages[i+8][1] = 102 + i+8;
+			launchMessages[i+8][2] = 127;
 		}
+		_lastLaunchType = !launchType; // Fix for next time
 	}
 }

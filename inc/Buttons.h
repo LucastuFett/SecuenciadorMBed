@@ -2,16 +2,16 @@
 #include "definitions.h"
 
 
-#define RGB 0
-#if RGB
+#define RGBBTN 0
+#if RGBBTN
     // RGB Button Colors
-    #define BlueBtnRGB    0x092D3900
-    #define PurpleBtnRGB  0x26153C00
-    #define RedBtnRGB     0x30000000
-    #define OrangeBtnRGB  0x3F200700
+    #define BlueBtn    0x092D3900
+    #define PurpleBtn  0x26153C00
+    #define RedBtn     0x30000000
+    #define OrangeBtn  0x3F200700
 
     // RGB colors (uint32_t)
-    const uint32_t launchColorsRGB[] = {
+    const uint32_t launchColors[] = {
         0x7F191200,
         0x00430600,
         0x1F3B7F00,
@@ -38,7 +38,7 @@
     #define OrangeBtn  0x203F0700
 
     // GRB colors (uint32_t) at 50% brightness
-    const uint32_t launchColorsGRB[] = {
+    const uint32_t launchColors[] = {
         0x197F1200,
         0x43000600,
         0x3B1F7F00,

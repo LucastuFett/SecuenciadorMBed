@@ -235,7 +235,6 @@ void function1() {
             break;
         case PROG:
             if (shift) {
-                screen.updateMemoryText();
                 screen.setEdit(0);
                 mainState = MEMORY;
                 shift = false;
@@ -419,12 +418,12 @@ void function3() {
             screen.setTyping(' ');
             if (!shift) {
                 screen.left();
-            }
+            }else shift = false;
             break;
         case SAVELOAD:
             if (shift) {
                 midiFile.deleteFile(screen.getFilename(),bank);
-                screen.updateBanks();
+                shift = false;
             } else {
                 bank ++;
                 if (bank > 8) bank = 1; // Wrap around to first bank
@@ -702,7 +701,7 @@ int main()
     //ledThread.start(changeLED); // Start LED change thread
     //encthread.start(do_enc);
     ThisThread::sleep_for(1s); // Wait for the TFT to initialize
-    midiFile.init();
+    //midiFile.init();
     timerThread.start(pollTimer);
 
     #if TESTING_MODES
@@ -716,9 +715,18 @@ int main()
     holdKey holdTest2 = {9,0,62};
     holded.emplace(holdTest2,14);
     */
-    mainState = PROG;
-    changeState(); // Initial state change
+    //mainState = PROG;
+    //changeState(); // Initial state change
     ThisThread::sleep_for(1s);
+    function3();
+    ThisThread::sleep_for(5s);
+    selectFunc();
+    ThisThread::sleep_for(5s);
+    selectFunc();
+    ThisThread::sleep_for(5s);
+    exitFunc();
+    ThisThread::sleep_for(5s);
+    function4();
     //midiFile.saveToFile();
     /*
     // Text Edit Test

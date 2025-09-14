@@ -16,8 +16,10 @@ extern Mutex messagesMutex;
 MIDIFile::MIDIFile() :
 USBMSD(get_usb_phy(),&_bd,0x0703,0x0104,1),
 _fs("fs"),
-_bd(p3, p0, p2, p1)
+_bd(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS)
 {
+	_usb = false;
+	/*
     _bd.init();
 
     FATFileSystem::format(&_bd);
@@ -32,7 +34,8 @@ _bd(p3, p0, p2, p1)
     if (err) {
         while (1);
     }    
-    _usb = false;
+    
+	*/
 }
 
 void MIDIFile::init() {

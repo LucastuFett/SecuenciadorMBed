@@ -147,6 +147,6 @@ void MIDITimer::setInterval(us_timestamp_t interval){
 }
 
 void MIDITimer::send(uint8_t status, uint8_t data1, uint8_t data2) {
-    if (status & 0xF0 == 0x90 && _usb) write(MIDIMessage::NoteOn(data1, data2, status & 0xF));
-    else if (status & 0xF0 == 0xB0 && _usb) write(MIDIMessage::ControlChange(data1, data2, status & 0xF));
+    if (((status & 0xF0) == 0x90) && _usb) write(MIDIMessage::NoteOn(data1, data2, status & 0xF));
+    else if (((status & 0xF0) == 0xB0) && _usb) write(MIDIMessage::ControlChange(data1, data2, status & 0xF));
 }

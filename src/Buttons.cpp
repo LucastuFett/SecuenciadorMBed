@@ -45,7 +45,13 @@ Buttons::Buttons(){
 
 void Buttons::press(uint8_t num){
 	switch(mainState){
-		case PROG:{
+		case PROG:
+		case NOTE:
+		case MEMORY:
+		case SAVELOAD:
+		case RENAME:
+		case TEMPO:
+		case SCALE:{
 			uint8_t noteIndex = note + (octave * 12);
 			uint8_t midiNote = noteIndex + 24;
 			uint32_t beatMask = 0;
@@ -200,6 +206,8 @@ void Buttons::press(uint8_t num){
 			else timer.send(launchMessages[num][0], launchMessages[num][1], 0);
 			_DAWSent[num] = !_DAWSent[num];
 			break;
+		default:
+			break;
 	}
 	updateColors();
 }
@@ -214,6 +222,12 @@ void Buttons::updateColors(){
 	for (uint8_t i = 0; i < 16; i++) ledData[i] = 0x00000000;
 	switch (mainState){
 		case PROG:
+		case NOTE:
+		case MEMORY:
+		case SAVELOAD:
+		case RENAME:
+		case TEMPO:
+		case SCALE:{
 			uint16_t bptIndex = (note + (octave * 12)) * 16 + channel;
 			uint32_t beatMask = 0;
 			for (uint8_t i = 0; i < 16; i++) {
@@ -268,7 +282,7 @@ void Buttons::updateColors(){
 				beatMutex.unlock();
 			}
 			break;
-		case PLAY:
+		}case PLAY:
 		case CHANNEL:
 			channelEnabledMutex.lock();
 			for (uint8_t i = 0; i < 16; i++){
@@ -277,10 +291,12 @@ void Buttons::updateColors(){
 			channelEnabledMutex.unlock();
 			break;
 		case LAUNCH:
-			for (uint8_t i = 0; i < 16; i++) if(keys[(i/4) + 1][i%4]) ledData[i] = launchColorsGRB[i];
+			for (uint8_t i = 0; i < 16; i++) if(keys[(i/4) + 1][i%4]) ledData[i] = launchColors[i];
 			break;
 		case DAW:
-			for (uint8_t i = 0; i < 16; i++) if(_DAWSent[i]) ledData[i] = launchColorsGRB[i];
+			for (uint8_t i = 0; i < 16; i++) if(_DAWSent[i]) ledData[i] = launchColors[i];
+			break;
+		default:
 			break;
 	}
 	

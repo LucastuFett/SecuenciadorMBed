@@ -40,6 +40,26 @@ const char special[] = {'0','1','2','3','4','5','6','7','8','9','\'','.',',','/'
 
 const string tones[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
+// RGB565 colors (uint16_t)
+const uint16_t launchColorsScr[] = {
+    0xF984,
+    0x0421,
+    0x43BF,
+    0xD423,
+    0xEAB5,
+    0x0D58,
+    0xF2E9,
+    0xC81E,
+    0xC81E,
+    0xF2E9,
+    0x0D58,
+    0xEAB5,
+    0xD423,
+    0x43BF,
+    0x0421,
+    0xF984
+};
+
 class Screen : public SPI_TFT_ILI9341 {
     int8_t _typePointer;
     int8_t _letterPointer;
@@ -70,6 +90,14 @@ class Screen : public SPI_TFT_ILI9341 {
     string _lastFiles[12];
     uint16_t _lastBkgColors[12];
     bool _lastMode32 = false;
+    bool _lastLaunchType = true;
+    int8_t _lastLaunchTone = 1;
+    int8_t _lastLaunchMode = 1;
+    int8_t _lastLaunchOctave = 0;
+    int8_t _lastLaunchChn = 16;
+
+
+    // General Functions
 
     // Cover Title
     void coverTitle();
@@ -90,20 +118,7 @@ class Screen : public SPI_TFT_ILI9341 {
     */
     void updateMenuText(uint8_t menu);
 
-    // Shows or Hides Piano Roll
-    void showPiano(bool show);
-
-    // Shows or Hides Typing Box
-    void showTyping(bool show);
-
-    // Shows or Hides Memory Banks
-    void showBanks(bool show);
-
-    // Shows or Hides Launchpad
-    void showLaunchpad(bool show);
-
-    // Updates Launchpad
-    void updateLaunch();
+    // Piano Functions
 
     // Get Possible Notes for the current scale
     void getPossible(vector <uint16_t> possible[2], int8_t tone, int8_t mode);
@@ -111,12 +126,40 @@ class Screen : public SPI_TFT_ILI9341 {
     // Paint Scales and Selected Notes
     void paintScales();
 
+    // Shows or Hides Piano Roll
+    void showPiano(bool show);
+
     // Paint Grid
     void paintGrid();
 
     // Update Hold
     void updateHold();
+
+    // Memory Functions
+
+    // Update Text Writing
+    void updateMemoryText();
+
+    // Load Filenames
+    void updateBanks();
+
+    // Shows or Hides Typing Box
+    void showTyping(bool show);
+
+    // Shows or Hides Memory Banks
+    void showBanks(bool show);
+
+    // Launchpad Functions
+
+    // Shows or Hides Launchpad
+    void showLaunchpad(bool show);
+
+    // Updates Launchpad
+    void updateLaunch();    
+
 public:
+    // General Functions
+
     // Constructor
     Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char* name ="TFT");
 
@@ -132,23 +175,21 @@ public:
     // Update Screen Content
     void updateScreen();
 
-    // Update Text Writing
-    void updateMemoryText();
+    // Error Message
+    void showError(string error);
+
+    // Memory Functions
 
     // Select a letter when Writing
     void selectLetter();
-
-    // Save Filename when Writing
-    string saveFilename();
     
-    // Load Filenames
-    void updateBanks();
-
     // Get filename from selected file
     string getFilename();
 
-    // Set Edit Variable
-    void setEdit(int8_t edit);
+    // Save Filename when Writing
+    string saveFilename();
+
+    // Getters and Setters
 
     // Get Current Pointer
     bool getCurPointer();
@@ -162,9 +203,11 @@ public:
     // Set Upper
     void setUpper(bool upper);
 
+    // Set Edit Variable
+    void setEdit(int8_t edit);
+
     // Update Typing Text at Pointer
     void setTyping(char type);
 
-    // Error Message
-    void showError(string error);
+
 };
