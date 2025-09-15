@@ -52,7 +52,6 @@ DigitalOut rows[5] ={
     DigitalOut(p20)
 };
 
-BufferedSerial midiUART(p12, p13, 31250);
 WS2812_PIO ledStrip(p5, 8);
 Encoder encoder(p6, p7, PullUp); 
 DigitalIn exitSW(p15, PullDown);
@@ -61,8 +60,6 @@ DigitalIn selectSW(p14, PullDown);
 #endif
 
 Screen screen(p3,p0,p2,p1,NC,p4,"TFT");
-
-//USBMIDI midi;
 
 bool keys[5][4] = {{0}}; // 5 rows, 4 columns
 bool lastKeys[5][4] = {{0}}; // Last state of keys
@@ -98,13 +95,13 @@ uint8_t midiMessages[320][3] = {{144, 36, 127}, {144, 49, 127}, {144, 38, 127}, 
 uint8_t offMessages[320][3] = {{144, 49, 0}, {144, 36, 0}, {144, 49, 0}, {144, 38, 0}, {144, 36, 0}, {144, 49, 0}, {144, 49, 0}, {144, 38, 0}, {144, 49, 0}, {144, 36, 0}, {144, 49, 0}, {144, 38, 0}, {144, 36, 0}, {144, 49, 0}, {144, 36, 0}, {144, 38, 0}, {144, 49, 0}, {144, 36, 0}, {144, 49, 0}, {144, 38, 0}, {144, 36, 0}, {144, 49, 0}, {144, 49, 0}, {144, 38, 0}, {144, 49, 0}, {144, 36, 0}, {144, 49, 0}, {144, 38, 0}, {144, 36, 0}, {144, 49, 0}, {144, 36, 0}, {144, 38, 0}, {145, 52, 0}, {144, 49, 0}, {145, 53, 0}, {144, 49, 0}, {144, 49, 0}, {145, 53, 0}, {145, 53, 0}, {144, 49, 0}, {145, 53, 0}, {144, 49, 0}, {145, 50, 0}, {144, 49, 0}, {144, 49, 0}, {145, 55, 0}, {144, 49, 0}, {144, 49, 0}, {145, 55, 0}, {144, 49, 0}, {145, 57, 0}, {144, 49, 0}, {144, 49, 0}, {145, 55, 0}, {145, 55, 0}, {144, 49, 0}, {145, 55, 0}, {144, 49, 0}, {145, 57, 0}, {144, 49, 0}, {144, 49, 0}, {145, 57, 0}, {144, 49, 0}, {144, 49, 0}, {146, 40, 0}, {145, 53, 0}, {0, 0, 0}, {145, 53, 0}, {145, 53, 0}, {148, 74, 0}, {148, 76, 0}, {145, 53, 0}, {146, 41, 0}, {145, 50, 0}, {146, 38, 0}, {145, 55, 0}, {145, 55, 0}, {148, 74, 0}, {145, 55, 0}, {145, 55, 0}, {146, 43, 0}, {145, 57, 0}, {0, 0, 0}, {145, 57, 0}, {145, 57, 0}, {148, 72, 0}, {148, 72, 0}, {145, 55, 0}, {147, 59, 0}, {145, 57, 0}, {148, 76, 0}, {145, 57, 0}, {145, 57, 0}, {146, 45, 0}, {145, 52, 0}, {145, 52, 0}, {147, 55, 0}, {0, 0, 0}, {0, 0, 0}, {148, 76, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 0}, {147, 57, 0}, {0, 0, 0}, {148, 72, 0}, {0, 0, 0}, {0, 0, 0}, {148, 72, 0}, {0, 0, 0}, {147, 59, 0}, {0, 0, 0}, {0, 0, 0}, {148, 69, 0}, {146, 45, 0}, {0, 0, 0}, {0, 0, 0}, {146, 43, 0}, {147, 55, 0}, {0, 0, 0}, {0, 0, 0}, {148, 74, 0}, {148, 74, 0}, {147, 60, 0}, {148, 71, 0}, {0, 0, 0}, {147, 52, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 53, 0}, {147, 53, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 55, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 60, 0}, {0, 0, 0}, {0, 0, 0}, {148, 74, 0}, {147, 50, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 0}, {0, 0, 0}, {0, 0, 0}, {147, 48, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 48, 0}, {147, 48, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 50, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 57, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 43, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 52, 0}, {0, 0, 0}, {0, 0, 0}, {147, 40, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 41, 0}, {147, 41, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 43, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 52, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 45, 0}, {0, 0, 0}, {0, 0, 0}, {148, 69, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 74, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 76, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {147, 45, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 72, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {148, 69, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
 uint8_t channels[16] = {1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0}; // 1 = Enabled, 0 = Disabled
 uint32_t control = 0xFFFFFFFF;
-bool mode32 = false;
+bool mode32 = true;
 #else
 uint8_t midiMessages[320][3] = {{0}};
 uint8_t offMessages[320][3] = {{0}}; 
 uint8_t channels[16] = {0};
 uint32_t control = 0;
-bool mode32 = true;
+bool mode32 = false;
 #endif
 
 uint32_t beatsPerTone[1536] = {0};
@@ -118,11 +115,12 @@ int8_t velocity = 127;
 
 bool half = false;
 int16_t tempo[2] = {0,120}; // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
-string filename = "WegtTestTestTestTw";
+string filename = "Song";
 string renameFilename = "";
 uint8_t bank = 1;
 uint8_t hold = 0; // 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
 map<holdKey,uint8_t, CompareHoldKey> holded;
+
 Mutex messagesMutex;
 Mutex ledDataMutex;
 Mutex beatMutex;
@@ -130,6 +128,7 @@ Mutex beatsPerToneMutex;
 Mutex controlMutex;
 Mutex holdedMutex;
 Mutex channelEnabledMutex;
+Mutex tempoMutex;
 
 // UI Variables
 
@@ -139,6 +138,7 @@ int8_t prevMode = 0; // Previous mode for the UI
 int8_t prevChn = 0; // Previous channel for the UI
 int8_t prevTone = 0; // Previous tone for the UI
 int16_t prevTempo[2] = {0,120};
+int16_t prevBPM = 120;
 uint32_t ledData[16];
 uint32_t lastLedData[16];
 
@@ -193,7 +193,10 @@ void selectFunc() {
             mainState = PROG;
             break;
         case PROG:
-            if (shift) mode32 = !mode32;
+            if (shift) {
+                mode32 = !mode32;
+                shift = false;
+            }
             else if (mode32) half = !half;
             break;
         case MEMORY:
@@ -321,14 +324,19 @@ void function2() {
             if (mode < 0) mode = SCALE_COUNT - 1; // Wrap around to last scale
             break;
         case TEMPO:
+            tempoMutex.lock();
             if (shift){
                 if (!tempo[0]) {
                     tempo[1] /= 2;
                     if (tempo[1] < 60) tempo[1] = 60; // Prevent lower tempo
-                }
+                } else tempo[1] = 0;
                 shift = false;
             }
-            else tempo[0] = 0;
+            else {
+                tempo[0] = 0;
+                tempo[1] = prevBPM;
+            }
+            tempoMutex.unlock();
             break;
         case MEMORY:
         case RENAME:
@@ -405,13 +413,19 @@ void function3() {
             if (mode == SCALE_COUNT) mode = 0; // Wrap around to first scale
             break;
         case TEMPO:
+            tempoMutex.lock();
             if (shift){
                 if (!tempo[0]) {
                     tempo[1] *= 2;
-                    if (tempo[1] > 360) tempo[1] = 360; // Prevent upper tempo
-                }
+                    if (tempo[1] > 480) tempo[1] = 480; // Prevent upper tempo
+                }else tempo[1] = 2;
                 shift = false;
-            } else tempo[0] = 1;
+            } else {
+                tempo[0] = 1;
+                prevBPM = tempo[1];
+                tempo[1] = 1;
+            }
+            tempoMutex.unlock();
             break;
         case MEMORY:
         case RENAME:
@@ -463,7 +477,9 @@ void function4() {
             mainState = PROG;
             break;
         case TEMPO:
+            tempoMutex.lock();
             memcpy(tempo, prevTempo, sizeof(tempo)); // Restore previous tempo
+            tempoMutex.unlock();
             mainState = PROG;
             break;
         case CHANNEL:
@@ -527,7 +543,9 @@ void exitFunc() {
 			mainState = PROG;
             break;
 		case TEMPO:
+            tempoMutex.lock();
 			memcpy(tempo, prevTempo, sizeof(tempo)); // Restore previous tempo
+            tempoMutex.unlock();
 			mainState = PROG;
             break;
 		case CHANNEL:
@@ -565,13 +583,14 @@ void left() {
             if (tone < 0) tone = 11; // Wrap around to last tone
             break;
         case TEMPO:
+            tempoMutex.lock();
             tempo[1] --;
             if (tempo[0]) {
                 if (tempo[1] < 0) tempo[1] = 2;
             } else {
-                if (tempo[1] < 60) tempo[1] = 360; // Prevent lower tempo
+                if (tempo[1] < 60) tempo[1] = 60; // Prevent lower tempo
             }
-            tempoChange();
+            tempoMutex.unlock();
             break;
         case CHANNEL:
             channel --;
@@ -607,13 +626,14 @@ void right() {
             if (tone > 11) tone = 0; // Wrap around to first tone
             break;
         case TEMPO:
+            tempoMutex.lock();
             tempo[1] ++;
             if (tempo[0]) {
                 if (tempo[1] > 2) tempo[1] = 0;
             } else {
-                if (tempo[1] > 360) tempo[1] = 60; // Prevent upper tempo
+                if (tempo[1] > 480) tempo[1] = 480; // Prevent upper tempo
             }
-            tempoChange();
+            tempoMutex.unlock();
             break;
         case CHANNEL:
             channel ++;
@@ -633,13 +653,6 @@ void right() {
 void changeState() {
     screen.updateScreen();
     buttons.updateColors();
-    tempoChange();
-}
-
-void tempoChange() {
-    if (!tempo[0]) {
-        timer.setInterval(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1])); // Internal tempo
-    }
 }
 
 void timeout() {
@@ -655,7 +668,6 @@ void timeout() {
             filename = nextFilename;
             timer.allNotesOff(); // Stop all notes
             buttons.updateStructures();
-            tempoChange();
             queue = false;
         }
     }
@@ -681,7 +693,7 @@ void do_enc() {
 
 void pollTimer(){
     while(true){
-        if(timer.isRunning()) timer.poll();
+        timer.poll();
         ThisThread::sleep_for(1ms);
     }
 }
@@ -692,10 +704,8 @@ int main()
 {
     // Give the USB a moment to initialize and enumerate
     ThisThread::sleep_for(100ms);
-    timer.initUSB();
     
     // Set and Attach Trigger
-    timer.setInterval(static_cast<us_timestamp_t>((60.0 * 1'000'000) / tempo[1]));
     screen.init();
     ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0])); // Update LED strip
     //ledThread.start(changeLED); // Start LED change thread
@@ -707,60 +717,16 @@ int main()
     #if TESTING_MODES
 
     // Programming Test
-    /*
-    beatsPerTone[576] = 0x10400000;
-    beatsPerTone[608] = 0x00400000;
-    holdKey holdTest = {0,0,60};
-    holded.emplace(holdTest,5);
-    holdKey holdTest2 = {9,0,62};
-    holded.emplace(holdTest2,14);
-    */
-    //mainState = PROG;
-    //changeState(); // Initial state change
-    ThisThread::sleep_for(1s);
-    function3();
-    ThisThread::sleep_for(5s);
-    selectFunc();
-    ThisThread::sleep_for(5s);
-    selectFunc();
-    ThisThread::sleep_for(5s);
-    exitFunc();
-    ThisThread::sleep_for(5s);
-    function4();
-    //midiFile.saveToFile();
-    /*
-    // Text Edit Test
-    shift = true;
     function1();
     ThisThread::sleep_for(500ms);
-    right();
+    shift = true;
+    function3();
     ThisThread::sleep_for(500ms);
-    right();
-    ThisThread::sleep_for(500ms);
-    selectFunc();
-    ThisThread::sleep_for(200ms);
-    right();
+    function3();
+    function1();
     ThisThread::sleep_for(500ms);
     function2();
-    ThisThread::sleep_for(200ms);
-    selectFunc();
-    ThisThread::sleep_for(500ms);
-    function1();
-    ThisThread::sleep_for(1s);
-    shift = true;
-    function1();
-    ThisThread::sleep_for(1s);
-    function4();
-    ThisThread::sleep_for(10s);
-    exitFunc();
-    ThisThread::sleep_for(1s);
-    exitFunc();
-    ThisThread::sleep_for(500ms);
-    exitFunc();
-    ThisThread::sleep_for(500ms);
-    shift = true;
-    function3();
-    */
+
     #endif
 
     while (true) {
@@ -819,7 +785,6 @@ int main()
 
         if (encoder.getRotaryEncoder()){
             int current=encoder.read();
-            //timer.write(MIDIMessage::ControlChange(0,current & 0x7F));
             if (current == 1) right();
             if (current == -1) left();
         }

@@ -11,20 +11,26 @@ class MIDITimer : public USBMIDI{
     Timer _timer;
     Callback <void()> _timeoutCallback;
     bool _usb;
+    int16_t _lastTempo[2] = {0,120};
+    BufferedSerial _midiUART;
+    uint8_t _clockPulses = 0;
 
-virtual const uint8_t *string_iproduct_desc() override {
+    virtual const uint8_t *string_iproduct_desc() override {
         static const uint8_t custom_desc[] = {
             0x1A, STRING_DESCRIPTOR,
             'L', 0, 'u', 0, 'c', 0, 'a', 0, 's', 0, ' ', 0, 'G', 0, 'r', 0, 'o', 0, 'o', 0, 'v', 0, 'e', 0
         };
         return custom_desc;
-}
-
-    // Start the timer with a specified interval
-    void start(us_timestamp_t interval);
+    }
 
     // Start the timer with saved interval
     void start();
+
+    // Check MIDI Messages
+    void checkMIDI();
+
+    // Check MIDI Messages from USB
+    void checkUSB();
 
 public:
     // Constructor
@@ -59,9 +65,6 @@ public:
 
     // Send an All Notes Off for just one channel
     void allNotesOff(uint8_t channel);
-
-    // Set Saved Interval
-    void setInterval(us_timestamp_t interval);
     
     // Send Arbitrary MIDI Message
     void send(uint8_t status, uint8_t data1, uint8_t data2);
