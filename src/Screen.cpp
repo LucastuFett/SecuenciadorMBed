@@ -463,7 +463,8 @@ void Screen::updateMenuText(uint8_t menu) {
 			locate(12,93);
 			puts("Tempo");
 			locate(8,115);
-			puts(((to_string(tempo[1]))+"BPM").c_str());
+			if (!tempo[0]) puts(((to_string(tempo[1]))+"BPM").c_str());
+			else puts(tempo[1] == 0 ? "Half" : tempo[1] == 1 ? "Normal" : tempo[1] == 2 ? "Double" : "Err");
 
 			locate(18,143);
 			puts("Scale");
@@ -498,9 +499,10 @@ void Screen::updateMenuText(uint8_t menu) {
 			break;
 
 		case 2: // Tempo
-			fillrect(8,109,67,121,Black);
+			fillrect(8,109,67,122,Black);
 			locate(8,115);
-			puts(((to_string(tempo[1]))+"BPM").c_str());
+			if (!tempo[0]) puts(((to_string(tempo[1]))+"BPM").c_str());
+			else puts(tempo[1] == 0 ? "Half" : tempo[1] == 1 ? "Normal" : tempo[1] == 2 ? "Double" : "Err");
 			break;
 
 		case 3: // Scale
@@ -533,6 +535,7 @@ void Screen::updateMenuText(uint8_t menu) {
 			}
 			break;
 		case 6: // Mode Change
+			fillrect(260,140,300,152,Black);
 			if (!mode32) {
 				locate(260,140);
 				puts("16 St");

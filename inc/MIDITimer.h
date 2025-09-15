@@ -15,6 +15,9 @@ class MIDITimer : public USBMIDI{
     BufferedSerial _midiUART;
     uint8_t _clockPulses = 0;
 
+    Thread _usbThread;
+    EventQueue _usbQueue;
+
     virtual const uint8_t *string_iproduct_desc() override {
         static const uint8_t custom_desc[] = {
             0x1A, STRING_DESCRIPTOR,
@@ -31,6 +34,9 @@ class MIDITimer : public USBMIDI{
 
     // Check MIDI Messages from USB
     void checkUSB();
+
+    // ISR management
+    void onUSBMessageISR();
 
 public:
     // Constructor

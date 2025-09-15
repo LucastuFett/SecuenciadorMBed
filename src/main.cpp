@@ -719,13 +719,16 @@ int main()
     // Programming Test
     function1();
     ThisThread::sleep_for(500ms);
+    
     shift = true;
     function3();
     ThisThread::sleep_for(500ms);
     function3();
+    
     function1();
     ThisThread::sleep_for(500ms);
     function2();
+    
 
     #endif
 
