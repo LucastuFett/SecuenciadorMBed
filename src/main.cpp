@@ -8,8 +8,8 @@
 #include "Screen.h"
 #include "definitions.h"
 
-#define TESTING_BTN 1
-#define TESTING_MODES 1
+#define TESTING_BTN 0
+#define TESTING_MODES 0
 
 // Hardware
 
@@ -37,29 +37,29 @@ WS2812_PIO ledStrip(p10, 16);
 
 #else
 
-DigitalIn columns[4] = {
-    DigitalIn(p21, PullDown),
-    DigitalIn(p22, PullDown),
-    DigitalIn(p26, PullDown),
-    DigitalIn(p27, PullDown)
+DigitalInOut columns[4] = {
+    DigitalInOut(p16, PIN_INPUT, PullNone, 0),
+    DigitalInOut(p15, PIN_INPUT, PullNone, 0),
+    DigitalInOut(p18, PIN_INPUT, PullNone, 0),
+    DigitalInOut(p17, PIN_INPUT, PullNone, 0)
 };
 
-DigitalOut rows[5] ={
-    DigitalOut(p16),
-    DigitalOut(p17),
-    DigitalOut(p18),
-    DigitalOut(p19),
-    DigitalOut(p20)
+DigitalIn rows[5] ={
+    DigitalIn(p13,PullDown),
+    DigitalIn(p12,PullDown),
+    DigitalIn(p11,PullDown),
+    DigitalIn(p9,PullDown),
+    DigitalIn(p10,PullDown)
 };
 
-WS2812_PIO ledStrip(p5, 8);
-Encoder encoder(p6, p7, PullUp); 
-DigitalIn exitSW(p15, PullDown);
-DigitalIn selectSW(p14, PullDown);
+WS2812_PIO ledStrip(p19, 16);
+Encoder encoder(p7, p8, PullUp); 
+DigitalIn exitSW(p14, PullDown);
+DigitalIn selectSW(p6, PullDown);
 
 #endif
 
-Screen screen(p3,p0,p2,p1,NC,p4,"TFT");
+Screen screen(p27,p28,p26,p22,NC,p21,"TFT");
 
 bool keys[5][4] = {{0}}; // 5 rows, 4 columns
 bool lastKeys[5][4] = {{0}}; // Last state of keys
@@ -77,7 +77,6 @@ void exitFunc();
 void left();
 void right();
 void changeState();
-void tempoChange();
 void timeout();
 
 // Composition
@@ -711,7 +710,7 @@ int main()
     //ledThread.start(changeLED); // Start LED change thread
     //encthread.start(do_enc);
     ThisThread::sleep_for(1s); // Wait for the TFT to initialize
-    //midiFile.init();
+    midiFile.init();
     timerThread.start(pollTimer);
 
     #if TESTING_MODES
@@ -740,17 +739,17 @@ int main()
             if (switches[1]){
                 shift = true;
             }
-            if (keys[0][0] && !lastKeys[0][0]) { // Function 1
-                function1();
-            }
-            if (keys[0][1] && !lastKeys[0][1]) { // Function 2
-                function2();
-            }
-            if (keys[0][2] && !lastKeys[0][2]) { // Function 3
+            if (keys[0][0] && !lastKeys[0][0]) { // Function 3
                 function3();
             }
-            if (keys[0][3] && !lastKeys[0][3]) { // Function 4
+            if (keys[0][1] && !lastKeys[0][1]) { // Function 4
                 function4();
+            }
+            if (keys[0][2] && !lastKeys[0][2]) { // Function 1
+                function1();
+            }
+            if (keys[0][3] && !lastKeys[0][3]) { // Function 2
+                function2();
             }
             for(int i = 1; i < 5; i++) {
                 for(int j = 0; j < 4; j++) {

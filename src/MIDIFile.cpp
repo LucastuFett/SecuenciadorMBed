@@ -19,10 +19,10 @@ _fs("fs"),
 _bd(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS)
 {
 	_usb = false;
-	/*
+	
     _bd.init();
 
-    FATFileSystem::format(&_bd);
+    //FATFileSystem::format(&_bd);
 
     int err = _fs.mount(&_bd);
 
@@ -35,7 +35,7 @@ _bd(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CON
         while (1);
     }    
     
-	*/
+	
 }
 
 void MIDIFile::init() {
@@ -46,7 +46,7 @@ void MIDIFile::init() {
 		if (dir) closedir(dir);
 		else mkdir(path.c_str(),0x1FF);
 	}
-	// loadTestFiles();
+	loadTestFiles();
 }
 
 void MIDIFile::loadTestFiles(){

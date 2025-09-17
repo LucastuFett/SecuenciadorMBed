@@ -52,7 +52,7 @@ Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName res
 		for (uint8_t i = 0; i < 12; i++) _bkgColors[i] = 0;
 		for (uint8_t i = 0; i < 12; i++) _lastBkgColors[i] = 0;
 
-		set_orientation(1);
+		set_orientation(3);
 		background(Black);    // set background to Black
 		foreground(White);    // set chars to white
 	}

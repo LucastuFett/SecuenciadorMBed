@@ -26,6 +26,8 @@ class MIDITimer : public USBMIDI{
         return custom_desc;
     }
 
+    
+
     // Start the timer with saved interval
     void start();
 

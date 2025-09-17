@@ -5,7 +5,7 @@
 #include "mbed.h"
 #include "USBMSD.h"
 #include "FATFileSystem.h"
-#include "SDBlockDevice.h"
+#include "PicoSDBlockDevice.h"
 
 
 #define CMD0        0
@@ -506,7 +506,7 @@ uint8_t SD_writeSingleBlock(uint32_t addr, uint8_t *buf, uint8_t *token)
 }
 
 #else
-SDBlockDevice bd(p3, p0, p2, p1);
+PicoSDBlockDevice bd(p3, p0, p2, p1);
 #endif
 
 int main()
@@ -601,7 +601,7 @@ int main()
     ThisThread::sleep_for(10000ms);
     bd.init();
 
-    FATFileSystem::format(&bd);
+    //FATFileSystem::format(&bd);
 
     int err = fs.mount(&bd);
 

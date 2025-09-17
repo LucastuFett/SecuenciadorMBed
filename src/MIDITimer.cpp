@@ -30,6 +30,7 @@ MIDITimer::MIDITimer(Callback <void()> timeoutCallback) :
     initUSB();
 
     _midiUART.set_format(8, BufferedSerial::None, 1);
+    _midiUART.set_flow_control(BufferedSerial::Disabled);
 }
 
 void MIDITimer::initUSB(){
@@ -291,5 +292,9 @@ void MIDITimer::allNotesOff(uint8_t channel) {
 void MIDITimer::send(uint8_t status, uint8_t data1, uint8_t data2) {
     if (((status & 0xF0) == 0x90) && _usb) write(MIDIMessage::NoteOn(data1, data2, status & 0xF));
     else if (((status & 0xF0) == 0xB0) && _usb) write(MIDIMessage::ControlChange(data1, data2, status & 0xF));
-    _midiUART.write((const char[]){status, data1, data2}, 3);
+    uint8_t message[3] = {0};
+    message[0] = status;
+    message[1] = data1;
+    message[2] = data2;
+    _midiUART.write(message, 3);
 }
