@@ -1,7 +1,7 @@
 #include "mbed.h"
 #include "USBMIDI.h"
 #include "MIDITimer.h"
-#include "MIDIFile.h"
+#include "MIDIFiles.h"
 #include "Buttons.h"
 #include "WS2812.h"
 #include "Encoder.h"
@@ -83,7 +83,7 @@ void timeout();
 
 MIDITimer timer(callback(timeout)); 
 Buttons buttons;
-MIDIFile midiFile;
+MIDIFiles midiFiles;
 
 // Programming Mode
 
@@ -208,12 +208,12 @@ void selectFunc() {
         case PLAY:
             if (timer.isRunning()) {
                 nextFilename = screen.getFilename();
-                midiFile.readFromFile(nextMessages,nextOffMessages,nextTempo,nextFilename,bank,nextMode,nextTone);
+                midiFiles.readFromFile(nextMessages,nextOffMessages,nextTempo,nextFilename,bank,nextMode,nextTone);
                 queue = true;
             } else {
                 messagesMutex.lock();
                 filename = screen.getFilename();
-                midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank,mode,tone);
+                midiFiles.readFromFile(midiMessages,offMessages,tempo,filename,bank,mode,tone);
                 buttons.updateStructures();
                 messagesMutex.unlock();
             }
@@ -247,19 +247,19 @@ void function1() {
             break;
         case MEMORY:
             filename = screen.saveFilename();
-            midiFile.saveToFile();
+            midiFiles.saveToFile();
             mainState = PROG;
             break;
         case SAVELOAD:
             messagesMutex.lock();
             filename = screen.getFilename();
-            midiFile.readFromFile(midiMessages,offMessages,tempo,filename,bank,mode,tone);
+            midiFiles.readFromFile(midiMessages,offMessages,tempo,filename,bank,mode,tone);
             buttons.updateStructures();
             messagesMutex.unlock();
             mainState = PROG;
             break;
         case RENAME:
-            midiFile.renameFile(renameFilename, screen.saveFilename(), bank);
+            midiFiles.renameFile(renameFilename, screen.saveFilename(), bank);
             mainState = SAVELOAD;
             break;
         case PLAY:
@@ -289,7 +289,7 @@ void function2() {
         case MAIN:
             if (shift) {
                 if (!timer.getUSB()){
-                    midiFile.deinitUSB();
+                    midiFiles.deinitUSB();
                     timer.initUSB();
                 }
                 shift = false;
@@ -382,9 +382,9 @@ void function3() {
     switch (mainState) {
         case MAIN:
             if (shift) {
-                if (!midiFile.getUSB()){
+                if (!midiFiles.getUSB()){
                     timer.deinitUSB();
-                    midiFile.initUSB();
+                    midiFiles.initUSB();
                 }
                 shift = false;
             } else mainState = LAUNCH;
@@ -435,7 +435,7 @@ void function3() {
             break;
         case SAVELOAD:
             if (shift) {
-                midiFile.deleteFile(screen.getFilename(),bank);
+                midiFiles.deleteFile(screen.getFilename(),bank);
                 shift = false;
             } else {
                 bank ++;
@@ -710,7 +710,7 @@ int main()
     //ledThread.start(changeLED); // Start LED change thread
     //encthread.start(do_enc);
     ThisThread::sleep_for(1s); // Wait for the TFT to initialize
-    midiFile.init();
+    midiFiles.init();
     timerThread.start(pollTimer);
 
     #if TESTING_MODES
@@ -791,9 +791,9 @@ int main()
             if (current == -1) left();
         }
         #endif
-        if (midiFile.getUSB()) midiFile.process();
-        if (midiFile.media_removed() && midiFile.getUSB()){
-            midiFile.deinitUSB();
+        if (midiFiles.getUSB()) midiFiles.process();
+        if (midiFiles.media_removed() && midiFiles.getUSB()){
+            midiFiles.deinitUSB();
             timer.initUSB();
         }
         ThisThread::sleep_for(1ms);

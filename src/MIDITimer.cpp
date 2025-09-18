@@ -110,7 +110,7 @@ void MIDITimer::poll() {
         _timer.reset();
     }else if (tempo[0]){
         clockMutex.lock();
-        uint8_t expectedPulses = 6 << tempo[1];
+        uint8_t expectedPulses = 24 >> tempo[1];
         if (_clockPulses >= expectedPulses) { 
             _clockPulses = 0;
             _timeoutCallback(); // Call the timeout callback

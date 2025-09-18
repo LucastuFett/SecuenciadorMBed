@@ -78,7 +78,7 @@ add_executable(${PROJECT_NAME}
     src/MIDITimer.cpp
     src/Buttons.cpp
     src/Screen.cpp
-    src/MIDIFile.cpp
+    src/MIDIFiles.cpp
     drivers/src/WS2812.cpp
     drivers/src/Encoder.cpp
     drivers/src/GraphicsDisplay.cpp

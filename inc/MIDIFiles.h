@@ -7,7 +7,7 @@
 #include "usb_phy_api.h"
 
 
-class MIDIFile : public USBMSD{
+class MIDIFiles : public USBMSD{
     FATFileSystem _fs;
     PicoSDBlockDevice _bd;
     bool _usb;
@@ -57,7 +57,7 @@ class MIDIFile : public USBMSD{
     void loadTestFiles();
 public:
     // Constructor
-    MIDIFile();
+    MIDIFiles();
     
     // Create Directory Structure
     void init();

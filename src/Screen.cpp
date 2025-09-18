@@ -1,5 +1,5 @@
 #include "Screen.h"
-#include "MIDIFile.h"
+#include "MIDIFiles.h"
 
 // Global variables for MIDI messages and control
 extern enum state mainState;
@@ -27,7 +27,7 @@ extern int8_t launchOctave;
 extern int8_t launchChn;
 extern vector<uint16_t> launchPossible[2];
 extern uint8_t launchMessages[16][3];
-extern MIDIFile midiFile;
+extern MIDIFiles midiFiles;
 extern Mutex beatsPerToneMutex;
 extern Mutex holdedMutex;
 
@@ -803,7 +803,7 @@ void Screen::updateBanks() {
 		set_font((unsigned char*) Arial12x12);
 	}
 
-	midiFile.getFiles(bank, _files);
+	midiFiles.getFiles(bank, _files);
 	for (uint8_t i = 0; i < 12; i ++){
 		if (i == _currentFile) _bkgColors[i] = Purple;
 		else if (i == _selectedFile) _bkgColors[i] = Blue;
@@ -853,7 +853,7 @@ void Screen::showBanks(bool show){
 		puts(("Bank " + to_string(bank)).c_str());
 		_lastBank = bank;
 		set_font((unsigned char*) Arial12x12);
-		midiFile.getFiles(bank, _files);
+		midiFiles.getFiles(bank, _files);
 		for (uint8_t i = 0; i < 12; i ++){
 			if (i == _selectedFile) _bkgColors[i] = Blue;
 			else _bkgColors[i] = DarkGrey;

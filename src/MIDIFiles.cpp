@@ -1,4 +1,4 @@
-#include "MIDIFile.h"
+#include "MIDIFiles.h"
 #include "Screen.h"
 
 extern uint8_t midiMessages[320][3];
@@ -13,7 +13,7 @@ extern Screen screen;
 extern Mutex messagesMutex;
 
 // VID_0703&PID_0104
-MIDIFile::MIDIFile() :
+MIDIFiles::MIDIFiles() :
 USBMSD(get_usb_phy(),&_bd,0x0703,0x0104,1),
 _fs("fs"),
 _bd(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS)
@@ -38,7 +38,7 @@ _bd(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CON
 	
 }
 
-void MIDIFile::init() {
+void MIDIFiles::init() {
 	
 	for (uint8_t i = 1; i < 9; i++) {
 		string path = "/fs/" + to_string(i);
@@ -46,10 +46,10 @@ void MIDIFile::init() {
 		if (dir) closedir(dir);
 		else mkdir(path.c_str(),0x1FF);
 	}
-	loadTestFiles();
+	//loadTestFiles();
 }
 
-void MIDIFile::loadTestFiles(){
+void MIDIFiles::loadTestFiles(){
 	FILE *file = fopen("/fs/1/Jump.mid","w");
 	for (uint8_t c : Jump) fputc(c,file);
 	fflush(file);
@@ -68,21 +68,21 @@ void MIDIFile::loadTestFiles(){
 	fclose(file);
 }
 
-void MIDIFile::initUSB(){
+void MIDIFiles::initUSB(){
     USBMSD::connect();
     _usb = true;
 }
 
-void MIDIFile::deinitUSB(){
+void MIDIFiles::deinitUSB(){
     USBMSD::deinit();
     _usb = false;
 }
 
-bool MIDIFile::getUSB(){
+bool MIDIFiles::getUSB(){
     return _usb;
 }
 
-void MIDIFile::saveToFile(){
+void MIDIFiles::saveToFile(){
 	FILE *file = fopen(("/fs/" + to_string(bank) + "/" + trim(filename) + ".mid").c_str(),"w");
 	const uint8_t delta = 24;
 	const uint8_t initMthd[] = {0x4D,0x54,0x68,0x64,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x01,0x00,delta};
@@ -142,7 +142,7 @@ void MIDIFile::saveToFile(){
 	fclose(file);
 }
 
-void MIDIFile::calcDelta(uint32_t value){
+void MIDIFiles::calcDelta(uint32_t value){
 	uint32_t buffer = value & 0x7F;
 	while ((value >> 7) > 0){
 		value >>= 7;
@@ -157,7 +157,7 @@ void MIDIFile::calcDelta(uint32_t value){
     }
 }
 
-void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank, int8_t &mode, int8_t &tone){
+void MIDIFiles::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[320][3], int16_t bpm[2], string filename, uint8_t bank, int8_t &mode, int8_t &tone){
 	FILE *file = fopen(("/fs/" + to_string(bank) + "/" + trim(filename) + ".mid").c_str(),"r");
 	uint16_t delta = 0;
 	uint32_t tempo = 0;
@@ -350,7 +350,7 @@ void MIDIFile::readFromFile(uint8_t midiMessages[320][3], uint8_t offMessages[32
 	fclose(file);
 }
 
-void MIDIFile::readDelta(FILE *f, uint32_t response[]){
+void MIDIFiles::readDelta(FILE *f, uint32_t response[]){
 	uint32_t bytecount = 1;
 	uint32_t value = fgetc(f);
 	if (value & 0x80){
@@ -368,7 +368,7 @@ void MIDIFile::readDelta(FILE *f, uint32_t response[]){
 	response[1] = bytecount;
 }
 
-void MIDIFile::getFiles(uint8_t bank, string files[12]){
+void MIDIFiles::getFiles(uint8_t bank, string files[12]){
 	DIR *d = opendir(("/fs/" + to_string(bank) + "/").c_str());
 	uint8_t i = 0;
 	while(true){
@@ -385,10 +385,10 @@ void MIDIFile::getFiles(uint8_t bank, string files[12]){
 	closedir(d);
 }
 
-void MIDIFile::deleteFile(string filename, uint8_t bank){
+void MIDIFiles::deleteFile(string filename, uint8_t bank){
 	if (filename != "") remove(("/fs/" + to_string(bank) + "/" + filename + ".mid").c_str());
 }
 
-void MIDIFile::renameFile(string origFilename, string filename, uint8_t bank){
+void MIDIFiles::renameFile(string origFilename, string filename, uint8_t bank){
 	if (filename != "" && origFilename != "") rename(("/fs/" + to_string(bank) + "/" + origFilename + ".mid").c_str(),("/fs/" + to_string(bank) + "/" + filename + ".mid").c_str());
 }
