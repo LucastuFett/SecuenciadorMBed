@@ -208,13 +208,17 @@ void selectFunc() {
         case PLAY:
             if (timer.isRunning()) {
                 nextFilename = screen.getFilename();
-                midiFiles.readFromFile(nextMessages,nextOffMessages,nextTempo,nextFilename,bank,nextMode,nextTone);
-                queue = true;
+                if (nextFilename != ""){
+                    midiFiles.readFromFile(nextMessages,nextOffMessages,nextTempo,nextFilename,bank,nextMode,nextTone);
+                    queue = true;
+                }
             } else {
                 messagesMutex.lock();
                 filename = screen.getFilename();
-                midiFiles.readFromFile(midiMessages,offMessages,tempo,filename,bank,mode,tone);
-                buttons.updateStructures();
+                if (filename != ""){
+                    midiFiles.readFromFile(midiMessages,offMessages,tempo,filename,bank,mode,tone);
+                    buttons.updateStructures();
+                }
                 messagesMutex.unlock();
             }
             break;

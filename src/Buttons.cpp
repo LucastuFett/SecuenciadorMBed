@@ -299,7 +299,12 @@ void Buttons::updateColors(){
 		default:
 			break;
 	}
-	
+	// Invert last 8 LEDs
+	for (uint8_t i = 8; i < 12; i++){
+		uint32_t temp = ledData[i];
+		ledData[i] = ledData[23 - i];
+		ledData[23 - i] = temp;
+	}
 	ledDataMutex.unlock();
 }
 

@@ -2,7 +2,7 @@
 #include "definitions.h"
 
 
-#define RGBBTN 0
+#define RGBBTN 1
 #if RGBBTN
     // RGB Button Colors
     #define BlueBtn    0x092D3900
