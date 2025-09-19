@@ -259,9 +259,9 @@ void Buttons::updateColors(){
 					if ((!half) || (!mode32) || (n & e))  ledData[i] = RedBtn;
 						
 					if ((!n) && e && half){
-						for (uint8_t j = 0; j < endBeat; j++) ledData[i] = OrangeBtn;
+						for (uint8_t j = 0; j < endBeat; j++) ledData[j] = OrangeBtn;
 					}else{
-						for (uint8_t j = i + 1; j < endBeat; j++) ledData[i] = OrangeBtn;
+						for (uint8_t j = i + 1; j < endBeat; j++) ledData[j] = OrangeBtn;
 					}
 					if (half || (!e)) ledData[endBeat] = RedBtn;
 				}
