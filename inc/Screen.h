@@ -74,7 +74,10 @@ class Screen : public SPI_TFT_ILI9341 {
     char _typing[18];
     string _files[12];
     uint16_t _bkgColors[12];
-    
+    int8_t _lastNote;
+    int8_t _lastOctave;
+
+    bool _octaveChanged = false;
     enum state _lastState = MAIN;
     bool _menu = false;
     bool _piano = false;

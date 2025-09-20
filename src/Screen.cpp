@@ -587,6 +587,7 @@ void Screen::paintScales(){
 
 	// If necessary, change the current octave to match
 	uint8_t offset = 0;
+	if (octave == _curOctave - 1 || octave == _curOctave + 2) _octaveChanged = true;
 	if (octave == _curOctave - 1) _curOctave -= 2;
 	if (octave == _curOctave + 2) _curOctave += 2;
 	if (octave == _curOctave + 1) offset += 97;
@@ -634,6 +635,7 @@ void Screen::showPiano(bool show){
 		// Draw Selected Scale
 		getPossible(_possible, tone, mode);
 		paintScales();
+		_octaveChanged = true;
 
 	} else if (!show && _piano) {
 		fillrect(48, 10, 238, 203, Black); // Hide the piano roll
@@ -642,17 +644,102 @@ void Screen::showPiano(bool show){
 }
 
 void Screen::paintGrid() {
-	uint8_t gridBeat = 16;
-	int8_t gridNote = 11;
-	uint8_t gridOctave = _curOctave;
-	uint16_t bptIndex;
-	uint32_t beatMask = 0;
-	for(uint8_t i = 0; i < 16; i++){
-		gridBeat --;
-		gridNote = 11;
-		gridOctave = _curOctave + 1;
+	if (_octaveChanged) {
+		uint8_t gridBeat = 16;
+		int8_t gridNote = 11;
+		uint8_t gridOctave = _curOctave;
+		uint16_t bptIndex;
+		uint32_t beatMask = 0;
+		for(uint8_t i = 0; i < 16; i++){
+			gridBeat --;
+			gridNote = 11;
+			gridOctave = _curOctave + 1;
 
-		for(uint8_t j = 0; j < 24; j++){
+			for(uint8_t j = 0; j < 24; j++){
+				int8_t indNote = gridNote;
+				if (gridNote < 0) {
+					indNote = gridNote + 12;
+					if (gridOctave == _curOctave + 1) gridOctave --;
+				}
+				uint8_t num = gridBeat;
+				if (mode32 && half) num += 16;
+				bptIndex = (indNote + (gridOctave *12)) * 16 + channel;
+				beatMask = 0x80000000 >> num;
+				uint16_t xStart = 95 + (gridBeat * 9);
+				uint16_t yStart = 11 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+				uint16_t xEnd = 102 + (gridBeat * 9);
+				uint16_t yEnd = 17 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+				beatsPerToneMutex.lock();
+				if((beatsPerTone[bptIndex] & beatMask) != 0) { 
+					if(count(_possible[0].begin(),_possible[0].end(),indNote)){
+						if(note == indNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
+						else if (indNote == _possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
+						else fillrect(xStart, yStart, xEnd, yEnd, Blue);
+					} 
+					else {
+						if(note == indNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Orange);
+						else fillrect(xStart, yStart, xEnd, yEnd, Red);					
+					}
+				}else fillrect(xStart, yStart, xEnd, yEnd, Black);
+				beatsPerToneMutex.unlock();
+				gridNote--;
+			}
+		}
+		holdedMutex.lock();
+		for (const auto &i : holded ) {
+			uint8_t endBeat = i.second;
+			uint8_t firstBeat = i.first.beatStart;
+			bool n = firstBeat >= 16;
+			bool e = endBeat >= 16;
+
+			if (((!mode32) && (n || e)) || (n && !half) || ((!n) && (!e) && mode32 && half)) continue;
+			
+			if (e && half) endBeat -= 16;
+			else if ((n && !e) || (e && !half)) endBeat = 15;
+
+			if (n) firstBeat -= 16;
+			else if (!n && e && half) firstBeat = 0;
+
+			// If it's the correct channel, and the note does not overflow the current limits
+			if ((i.first.channel == channel) && (i.first.midiNote >= (_curOctave * 12 + 24) && i.first.midiNote < (_curOctave + 2) * 12 + 24)){
+				uint8_t holdNote = (i.first.midiNote - 24) % 12;
+				gridNote = 11 - ((i.first.midiNote - 24) % 12);
+				gridOctave = (i.first.midiNote - 24) / 12;
+				//uint8_t gridEnd = 15 - endBeat;
+
+				for(gridBeat = firstBeat; gridBeat <= endBeat; gridBeat ++) {
+					uint16_t xStart = 95 + (gridBeat * 9);
+					uint16_t yStart = 11 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+					uint16_t xEnd = 102 + (gridBeat * 9);
+					uint16_t yEnd = 17 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+					if(count(_possible[0].begin(),_possible[0].end(),holdNote)){
+						if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
+						else if (holdNote == _possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
+						else fillrect(xStart, yStart, xEnd, yEnd, Blue);
+					} 
+					else {
+						if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Orange);
+						else fillrect(xStart, yStart, xEnd, yEnd, Red);					
+					}		
+				}
+			}
+		}
+		holdedMutex.unlock();
+		_octaveChanged = false;
+		_lastNote = note;
+		_lastOctave = octave;
+	}else{
+		uint8_t gridBeat = 16;
+		int8_t gridNote = 11;
+		uint8_t gridOctave = _curOctave;
+		uint16_t bptIndex;
+		uint32_t beatMask = 0;
+		// Update previous note
+		for(uint8_t i = 0; i < 16; i++){
+			gridBeat --;
+			gridNote = 11;
+			gridOctave = _curOctave + 1;
+
 			int8_t indNote = gridNote;
 			if (gridNote < 0) {
 				indNote = gridNote + 12;
@@ -680,48 +767,13 @@ void Screen::paintGrid() {
 			}else fillrect(xStart, yStart, xEnd, yEnd, Black);
 			beatsPerToneMutex.unlock();
 			gridNote--;
+			
 		}
+
+
+		// Update current note
+
 	}
-	holdedMutex.lock();
-	for (const auto &i : holded ) {
-        uint8_t endBeat = i.second;
-		uint8_t firstBeat = i.first.beatStart;
-		bool n = firstBeat >= 16;
-		bool e = endBeat >= 16;
-
-		if (((!mode32) && (n || e)) || (n && !half) || ((!n) && (!e) && mode32 && half)) continue;
-		
-		if (e && half) endBeat -= 16;
-		else if ((n && !e) || (e && !half)) endBeat = 15;
-
-		if (n) firstBeat -= 16;
-		else if (!n && e && half) firstBeat = 0;
-
-		// If it's the correct channel, and the note does not overflow the current limits
-		if ((i.first.channel == channel) && (i.first.midiNote >= (_curOctave * 12 + 24) && i.first.midiNote < (_curOctave + 2) * 12 + 24)){
-			uint8_t holdNote = (i.first.midiNote - 24) % 12;
-			gridNote = 11 - ((i.first.midiNote - 24) % 12);
-			gridOctave = (i.first.midiNote - 24) / 12;
-			//uint8_t gridEnd = 15 - endBeat;
-
-			for(gridBeat = firstBeat; gridBeat <= endBeat; gridBeat ++) {
-				uint16_t xStart = 95 + (gridBeat * 9);
-				uint16_t yStart = 11 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
-				uint16_t xEnd = 102 + (gridBeat * 9);
-				uint16_t yEnd = 17 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
-				if(count(_possible[0].begin(),_possible[0].end(),holdNote)){
-					if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
-					else if (holdNote == _possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
-					else fillrect(xStart, yStart, xEnd, yEnd, Blue);
-				} 
-				else {
-					if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Orange);
-					else fillrect(xStart, yStart, xEnd, yEnd, Red);					
-				}		
-			}
-		}
-    }
-	holdedMutex.unlock();
 }
 
 void Screen::updateHold() {
