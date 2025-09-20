@@ -55,6 +55,10 @@ Screen::Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName res
 		set_orientation(3);
 		background(Black);    // set background to Black
 		foreground(White);    // set chars to white
+		cls();
+		set_font((unsigned char*) Arial24x23);
+		locate(100,110);
+		puts("Starting...");
 	}
 
 void Screen::init() {
@@ -201,6 +205,7 @@ void Screen::updateScreen() {
 			break;
 		case CHANNEL:
 			updateMenuText(1);
+			_fullGrid = true;
 			paintGrid();
 			break;
 		case TEMPO:
@@ -210,6 +215,7 @@ void Screen::updateScreen() {
 		case SCALE:
 			getPossible(_possible, tone, mode);
 			paintScales();
+			_fullGrid = true;
 			paintGrid();
 			updateMenuText(3);
 			break;
@@ -587,7 +593,7 @@ void Screen::paintScales(){
 
 	// If necessary, change the current octave to match
 	uint8_t offset = 0;
-	if (octave == _curOctave - 1 || octave == _curOctave + 2) _octaveChanged = true;
+	if (octave == _curOctave - 1 || octave == _curOctave + 2) _fullGrid = true;
 	if (octave == _curOctave - 1) _curOctave -= 2;
 	if (octave == _curOctave + 2) _curOctave += 2;
 	if (octave == _curOctave + 1) offset += 97;
@@ -635,7 +641,7 @@ void Screen::showPiano(bool show){
 		// Draw Selected Scale
 		getPossible(_possible, tone, mode);
 		paintScales();
-		_octaveChanged = true;
+		_fullGrid = true;
 
 	} else if (!show && _piano) {
 		fillrect(48, 10, 238, 203, Black); // Hide the piano roll
@@ -644,7 +650,7 @@ void Screen::showPiano(bool show){
 }
 
 void Screen::paintGrid() {
-	if (_octaveChanged) {
+	if (_fullGrid) {
 		uint8_t gridBeat = 16;
 		int8_t gridNote = 11;
 		uint8_t gridOctave = _curOctave;
@@ -725,54 +731,111 @@ void Screen::paintGrid() {
 			}
 		}
 		holdedMutex.unlock();
-		_octaveChanged = false;
+		_fullGrid = false;
 		_lastNote = note;
 		_lastOctave = octave;
 	}else{
-		uint8_t gridBeat = 16;
-		int8_t gridNote = 11;
-		uint8_t gridOctave = _curOctave;
 		uint16_t bptIndex;
 		uint32_t beatMask = 0;
 		// Update previous note
-		for(uint8_t i = 0; i < 16; i++){
-			gridBeat --;
-			gridNote = 11;
-			gridOctave = _curOctave + 1;
+		for(int8_t gridBeat = 15; gridBeat >= 0; gridBeat--){
 
-			int8_t indNote = gridNote;
-			if (gridNote < 0) {
-				indNote = gridNote + 12;
-				if (gridOctave == _curOctave + 1) gridOctave --;
-			}
 			uint8_t num = gridBeat;
 			if (mode32 && half) num += 16;
-			bptIndex = (indNote + (gridOctave *12)) * 16 + channel;
+			bptIndex = (_lastNote + (_lastOctave *12)) * 16 + channel;
 			beatMask = 0x80000000 >> num;
 			uint16_t xStart = 95 + (gridBeat * 9);
-			uint16_t yStart = 11 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+			uint16_t yStart = 11 + (11 - _lastNote) * 8 + (1 - (_lastOctave - _curOctave)) * 96;
 			uint16_t xEnd = 102 + (gridBeat * 9);
-			uint16_t yEnd = 17 + (11 - indNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+			uint16_t yEnd = 17 + (11 - _lastNote) * 8 + (1 - (_lastOctave - _curOctave)) * 96;
 			beatsPerToneMutex.lock();
 			if((beatsPerTone[bptIndex] & beatMask) != 0) { 
-				if(count(_possible[0].begin(),_possible[0].end(),indNote)){
-					if(note == indNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
-					else if (indNote == _possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
+				if(count(_possible[0].begin(),_possible[0].end(),_lastNote)){
+					//if(note == _lastNote && octave == _lastOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
+					if (_lastNote == _possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
 					else fillrect(xStart, yStart, xEnd, yEnd, Blue);
 				} 
 				else {
-					if(note == indNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Orange);
-					else fillrect(xStart, yStart, xEnd, yEnd, Red);					
+					//if(note == _lastNote && octave == _lastOctave) fillrect(xStart, yStart, xEnd, yEnd, Orange);
+					fillrect(xStart, yStart, xEnd, yEnd, Red);					
 				}
 			}else fillrect(xStart, yStart, xEnd, yEnd, Black);
 			beatsPerToneMutex.unlock();
-			gridNote--;
 			
 		}
 
-
 		// Update current note
+		for(int8_t gridBeat = 15; gridBeat >= 0; gridBeat--){
 
+			uint8_t num = gridBeat;
+			if (mode32 && half) num += 16;
+			bptIndex = (note + (octave *12)) * 16 + channel;
+			beatMask = 0x80000000 >> num;
+			uint16_t xStart = 95 + (gridBeat * 9);
+			uint16_t yStart = 11 + (11 - note) * 8 + (1 - (octave - _curOctave)) * 96;
+			uint16_t xEnd = 102 + (gridBeat * 9);
+			uint16_t yEnd = 17 + (11 - note) * 8 + (1 - (octave - _curOctave)) * 96;
+			beatsPerToneMutex.lock();
+			if((beatsPerTone[bptIndex] & beatMask) != 0) { 
+				if(count(_possible[0].begin(),_possible[0].end(),note)){
+					fillrect(xStart, yStart, xEnd, yEnd, Green);
+				} 
+				else {
+					fillrect(xStart, yStart, xEnd, yEnd, Orange);
+				}
+			}else fillrect(xStart, yStart, xEnd, yEnd, Black);
+			beatsPerToneMutex.unlock();
+			
+		}
+		// Update both holded notes
+
+		holdedMutex.lock();
+		for (const auto &i : holded ) {
+			uint8_t gridOctave = (i.first.midiNote - 24) / 12;;
+			uint8_t endBeat = i.second;
+			uint8_t firstBeat = i.first.beatStart;
+			uint8_t holdNote = (i.first.midiNote - 24) % 12;
+			bool n = firstBeat >= 16;
+			bool e = endBeat >= 16;
+			bool c = (holdNote == note && gridOctave == octave);
+			bool l = (holdNote == _lastNote && gridOctave == _lastOctave);
+			
+			if (((!mode32) && (n || e)) || (n && !half) || ((!n) && (!e) && mode32 && half) || !c || !l) continue;
+			
+			if (e && half) endBeat -= 16;
+			else if ((n && !e) || (e && !half)) endBeat = 15;
+			
+			if (n) firstBeat -= 16;
+			else if (!n && e && half) firstBeat = 0;
+			
+			uint8_t gridBeat = 16;
+			int8_t gridNote;
+			// If it's the correct channel, and the note does not overflow the current limits
+			if ((i.first.channel == channel) && (i.first.midiNote >= (_curOctave * 12 + 24) && i.first.midiNote < (_curOctave + 2) * 12 + 24)){
+				
+				gridNote = 11 - holdNote;
+
+				for(gridBeat = firstBeat; gridBeat <= endBeat; gridBeat ++) {
+					uint16_t xStart = 95 + (gridBeat * 9);
+					uint16_t yStart = 11 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+					uint16_t xEnd = 102 + (gridBeat * 9);
+					uint16_t yEnd = 17 + (gridNote) * 8 + (1 - (gridOctave - _curOctave)) * 96;
+					if(count(_possible[0].begin(),_possible[0].end(),holdNote)){
+						if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Green);
+						else if (holdNote == _possible[0][0]) fillrect(xStart, yStart, xEnd, yEnd, Magenta);
+						else fillrect(xStart, yStart, xEnd, yEnd, Blue);
+					} 
+					else {
+						if(note == holdNote && octave == gridOctave) fillrect(xStart, yStart, xEnd, yEnd, Orange);
+						else fillrect(xStart, yStart, xEnd, yEnd, Red);					
+					}		
+				}
+			}
+		}
+		holdedMutex.unlock();
+
+		_lastNote = note;
+		_lastOctave = octave;
 	}
 }
 
@@ -847,6 +910,9 @@ void Screen::updateMemoryText() {
 }
 
 void Screen::updateBanks() {
+	midiFiles.getFiles(bank, _files);
+	ThisThread::sleep_for(100ms); // Wait a bit to ensure the files are loaded
+
 	if (bank != _lastBank){
 		set_font((unsigned char*) Arial16x16);
 		locate(20,12);
@@ -855,7 +921,6 @@ void Screen::updateBanks() {
 		set_font((unsigned char*) Arial12x12);
 	}
 
-	midiFiles.getFiles(bank, _files);
 	for (uint8_t i = 0; i < 12; i ++){
 		if (i == _currentFile) _bkgColors[i] = Purple;
 		else if (i == _selectedFile) _bkgColors[i] = Blue;
@@ -883,6 +948,7 @@ void Screen::updateBanks() {
 	memcpy(_lastBkgColors,_bkgColors, sizeof(_bkgColors));
 	_lastSelectedFile = _selectedFile;
 	_lastCurrentFile = _currentFile;
+	ThisThread::sleep_for(100ms); // Wait a bit to ensure title is written
 
 }
 
@@ -900,12 +966,13 @@ void Screen::showTyping(bool show){
 void Screen::showBanks(bool show){
 	
 	if (show && !_memBanks) {
+		_lastBank = bank;
+		midiFiles.getFiles(bank, _files);
+		ThisThread::sleep_for(100ms); // Wait a bit to ensure the files are loaded
 		set_font((unsigned char*) Arial16x16);
 		locate(20,12);
 		puts(("Bank " + to_string(bank)).c_str());
-		_lastBank = bank;
 		set_font((unsigned char*) Arial12x12);
-		midiFiles.getFiles(bank, _files);
 		for (uint8_t i = 0; i < 12; i ++){
 			if (i == _selectedFile) _bkgColors[i] = Blue;
 			else _bkgColors[i] = DarkGrey;

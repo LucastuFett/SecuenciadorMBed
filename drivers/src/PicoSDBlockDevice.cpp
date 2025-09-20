@@ -152,11 +152,11 @@ using namespace mbed;
 using namespace std::chrono;
 
 #ifndef MBED_CONF_SD_CMD_TIMEOUT
-#define MBED_CONF_SD_CMD_TIMEOUT                 5000   /*!< Timeout in ms for response */
+#define MBED_CONF_SD_CMD_TIMEOUT                 1000   /*!< Timeout in ms for response */
 #endif
 
 #ifndef MBED_CONF_SD_CMD0_IDLE_STATE_RETRIES
-#define MBED_CONF_SD_CMD0_IDLE_STATE_RETRIES     5      /*!< Number of retries for sending CMDO */
+#define MBED_CONF_SD_CMD0_IDLE_STATE_RETRIES     3      /*!< Number of retries for sending CMDO */
 #endif
 
 #ifndef MBED_CONF_SD_INIT_FREQUENCY
@@ -352,7 +352,7 @@ int PicoSDBlockDevice::_initialise_card()
     _spi_timer.start();
     do {
         status = _cmd(ACMD41_SD_SEND_OP_COND, arg, 1, &response);
-    } while ((response & R1_IDLE_STATE) && (_spi_timer.elapsed_time() < SD_COMMAND_TIMEOUT));
+    } while ((response & R1_IDLE_STATE) && (_spi_timer.elapsed_time() < milliseconds{1000}));
     _spi_timer.stop();
 
     // Initialization complete: ACMD41 successful

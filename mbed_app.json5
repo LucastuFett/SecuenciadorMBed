@@ -1,5 +1,15 @@
 {
   //requires: ["drivers-usb"],
+  config: {
+    "sd-cmd-timeout": {
+      help: "Timeout in ms for SD card command response",
+      value: 1000,
+    },
+    "sd-cmd0-retries": {
+      help: "Number of retries for CMD0",
+      value: 3,
+    },
+  },
   target_overrides: {
     "*": {
       "platform.stdio-baud-rate": 115200,

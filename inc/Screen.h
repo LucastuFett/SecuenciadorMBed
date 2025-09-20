@@ -77,7 +77,7 @@ class Screen : public SPI_TFT_ILI9341 {
     int8_t _lastNote;
     int8_t _lastOctave;
 
-    bool _octaveChanged = false;
+    bool _fullGrid = false;
     enum state _lastState = MAIN;
     bool _menu = false;
     bool _piano = false;

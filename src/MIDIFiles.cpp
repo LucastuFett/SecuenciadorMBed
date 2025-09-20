@@ -14,23 +14,29 @@ extern Mutex messagesMutex;
 
 // VID_0703&PID_0104
 MIDIFiles::MIDIFiles() :
-USBMSD(get_usb_phy(),&_bd,0x0703,0x0104,1),
-_fs("fs"),
-_bd(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS)
+BlockDeviceHolder(),
+USBMSD(get_usb_phy(),_blockDevice,0x0703,0x0104,1),
+_fs("fs")
 {
-	_usb = false;
-	
-    _bd.init();
 
-    //FATFileSystem::format(&_bd);
+    int err = _blockDevice->init();
 
-    int err = _fs.mount(&_bd);
+	if (err < 0) {
+		// If SD init fails, fallback to in-memory block device
+		_blockDevice->deinit();
+		_blockDevice = & _heapBD;
+		_blockDevice->init();
+		_heap = true;
+	}
+    //FATFileSystem::format(&_blockDevice);
+
+    err = _fs.mount(_blockDevice);
 
     if (err) {
-        err = _fs.reformat(&_bd);
+        err = _fs.reformat(_blockDevice);
     }
 
-    // If still error, then report failure
+	// If still error, then crash
     if (err) {
         while (1);
     }    
@@ -46,7 +52,8 @@ void MIDIFiles::init() {
 		if (dir) closedir(dir);
 		else mkdir(path.c_str(),0x1FF);
 	}
-	//loadTestFiles();
+	// If heap block device, load test files
+	if (_heap) loadTestFiles();
 }
 
 void MIDIFiles::loadTestFiles(){

@@ -1,17 +1,34 @@
 #include "mbed.h"
 #include "testFiles.h"
 #include "USBMSD.h"
+#include "HeapBlockDevice.h"
 #include "PicoSDBlockDevice.h"
 #include "FATFileSystem.h"
 #include "USBPhyHw.h"
 #include "usb_phy_api.h"
 
+#define DEFAULT_BLOCK_SIZE  512
+#define HEAP_BLOCK_DEVICE_SIZE (128 * DEFAULT_BLOCK_SIZE)
 
-class MIDIFiles : public USBMSD{
+class BlockDeviceHolder {
+protected:
+    PicoSDBlockDevice _picoBD;
+    HeapBlockDevice _heapBD;
+    BlockDevice* _blockDevice;
+    
+    BlockDeviceHolder() : 
+        _picoBD(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS),
+        _heapBD(HEAP_BLOCK_DEVICE_SIZE, DEFAULT_BLOCK_SIZE),
+        _blockDevice(&_picoBD)
+    {}
+};
+
+
+class MIDIFiles : private BlockDeviceHolder, public USBMSD{
     FATFileSystem _fs;
-    PicoSDBlockDevice _bd;
-    bool _usb;
     vector<uint8_t> _mtrk;
+    bool _usb = false;
+    bool _heap = false;
 
     virtual const uint8_t *string_iproduct_desc() override {
             static const uint8_t custom_desc[] = {
