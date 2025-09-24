@@ -812,11 +812,11 @@ int main() {
             if (current == -1) left();
         }
 #endif
-        if (midiFiles.getUSB()) midiFiles.process();  // If it's in USBMSD, process USB messages
+        if (midiFiles.getUSB()) midiFiles.notifyUSB();
         /*
         if (midiFiles.media_removed() && midiFiles.getUSB()) {
-            midiFiles.deinitUSB();
-            timer.initUSB();
+            shift = true;
+            function1();
         }*/
 
         ledDataMutex.lock();

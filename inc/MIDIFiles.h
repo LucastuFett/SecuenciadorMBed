@@ -9,6 +9,7 @@
 
 #define DEFAULT_BLOCK_SIZE 512
 #define HEAP_BLOCK_DEVICE_SIZE (128 * DEFAULT_BLOCK_SIZE)
+#define USB_RUN_FLAG 0x1
 
 class BlockDeviceHolder {
    protected:
@@ -38,6 +39,7 @@ class MIDIFiles : private BlockDeviceHolder, public USBMSD {
     FATFileSystem _fs;
     vector<uint8_t> _mtrk;
     bool _usb = false;
+    Thread _usbThread;
 
     virtual const uint8_t *string_iproduct_desc() override {
         static const uint8_t custom_desc[] = {
@@ -80,6 +82,9 @@ class MIDIFiles : private BlockDeviceHolder, public USBMSD {
     // Load Test FIles
     void loadTestFiles();
 
+    // USB Loop
+    void usbProcessLoop();
+
    public:
     // Constructor
     MIDIFiles();
@@ -95,6 +100,9 @@ class MIDIFiles : private BlockDeviceHolder, public USBMSD {
 
     // Get USB State
     bool getUSB();
+
+    // Notify USB
+    void notifyUSB();
 
     // Save a file
     void saveToFile();

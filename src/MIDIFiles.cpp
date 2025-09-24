@@ -62,49 +62,57 @@ void MIDIFiles::loadTestFiles() {
 }
 
 void MIDIFiles::initUSB() {
-    if (!_heap) {
-        // STEP 1: Unmount the filesystem. This flushes all pending writes
-        // and ensures the FAT is in a clean, consistent state.
-        _fs.unmount();
-
-        // STEP 2: Sync and de-initialize the software block device driver.
-        _blockDevice->sync();
-        _blockDevice->deinit();
-
-        // STEP 3: Now that the data is safe, put the physical card into an
-        // idle state, ready for the host PC to take over.
-        static_cast<PicoSDBlockDevice *>(_blockDevice)->go_idle();
-
-        // Give hardware a moment to settle.
-        ThisThread::sleep_for(100ms);
-
-    } else {
-        _fs.unmount();
-    }
-
-    USBMSD::connect();
-    _usb = true;
-}
-
-void MIDIFiles::deinitUSB() {
-    USBMSD::disconnect();
-    USBMSD::deinit();
-    _usb = false;
-
-    // Critical delay for USB cleanup
-    ThisThread::sleep_for(200ms);
+    _fs.unmount();
 
     if (!_heap) {
-        // Reinitialize block device from scratch
-        int err = _blockDevice->init();
-        if (err) {
-            // Retry once if init fails
-            ThisThread::sleep_for(100ms);
-            _blockDevice->init();
+        for (int i = 0; i < 5; i++) {
+            _blockDevice->sync();
+            ThisThread::sleep_for(50ms);
         }
     }
 
+    _blockDevice->deinit();
+    ThisThread::sleep_for(50ms);
+    _blockDevice->init();
+
+    ThisThread::sleep_for(100ms);
+
+    USBMSD::connect();
+    _usb = true;
+
+    // Start USB thread
+    _usbThread.start(callback(this, &MIDIFiles::usbProcessLoop));
+    _usbThread.set_priority(osPriorityHigh);
+}
+
+void MIDIFiles::deinitUSB() {
+    _usb = false;
+    USBMSD::disconnect();
+
+    // Wake thread so it exits cleanly
+    _usbThread.flags_set(USB_RUN_FLAG);
+    _usbThread.join();
+
+    _blockDevice->deinit();
+    ThisThread::sleep_for(50ms);
+    _blockDevice->init();
+
     _fs.mount(_blockDevice);
+}
+
+void MIDIFiles::usbProcessLoop() {
+    while (_usb) {
+        // Wait until main signals us to run OR timeout (as safety fallback)
+        ThisThread::flags_wait_any_for(
+            USB_RUN_FLAG, 1ms, true);  // clears flag automatically
+        for (int i = 0; i < 10; i++) {
+            USBMSD::process();
+        }
+    }
+}
+
+void MIDIFiles::notifyUSB() {
+    _usbThread.flags_set(USB_RUN_FLAG);
 }
 
 bool MIDIFiles::getUSB() {
