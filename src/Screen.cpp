@@ -305,6 +305,7 @@ void Screen::selectLetter() {
 
 string Screen::getFilename() {
     if (mainState == PLAY) _currentFile = _selectedFile;
+    _banksDirty = true;
     return _files[_selectedFile];
 }
 
@@ -318,6 +319,7 @@ string Screen::saveFilename() {
     _specialPointer = 0;
     _curPointer = 0;
     _upper = 0;
+    _banksDirty = true;
     return name;
 }
 
@@ -972,48 +974,110 @@ void Screen::updateMemoryText() {
     set_font((unsigned char*)Arial12x12);
 }
 
-void Screen::updateBanks() {
-    midiFiles.getFiles(bank, _files);
-    resyncSPI();
+void Screen::drawBank(uint8_t idx) {
+    uint8_t i = idx / 4;  // row 0..2
+    uint8_t j = idx % 4;  // col 0..3
+    uint16_t x0 = 14 + j * 74, y0 = 40 + i * 54;
+    uint16_t x1 = 84 + j * 74, y1 = 90 + i * 54;
 
-    if (bank != _lastBank) {
+    fillrect(x0, y0, x1, y1, _bkgColors[idx]);
+
+    if (!_files[idx].empty()) {
+        background(_bkgColors[idx]);
+        locate(17 + j * 74, 43 + i * 54);
+        puts(_files[idx].substr(0, 7).c_str());
+        locate(17 + j * 74, 59 + i * 54);
+        puts(_files[idx].size() > 7 ? _files[idx].substr(7, 7).c_str() : "");
+        locate(30 + j * 74, 75 + i * 54);
+        puts(_files[idx].size() > 14 ? _files[idx].substr(14).c_str() : "");
+        background(Black);
+    }
+}
+
+void Screen::updateBanks() {
+    const bool bankChanged = (bank != _lastBank);
+    if (bankChanged || _banksDirty) {
+        midiFiles.getFiles(bank, _files);
+        resyncSPI();
+    }
+
+    if (bankChanged) {
         set_font((unsigned char*)Arial16x16);
+        fillrect(20, 10, 113, 30, Black);  // clear old header
         locate(20, 12);
         puts(("Bank " + to_string(bank)).c_str());
-        _lastBank = bank;
         set_font((unsigned char*)Arial12x12);
+        _lastBank = bank;
     }
 
-    for (uint8_t i = 0; i < 12; i++) {
-        if (i == _currentFile)
-            _bkgColors[i] = Purple;
-        else if (i == _selectedFile)
-            _bkgColors[i] = Blue;
-        else
-            _bkgColors[i] = DarkGrey;
+    int8_t newCurrent = -1;
+    for (uint8_t i = 0; i < 12; ++i) {
+        if (_files[i] == filename) {
+            newCurrent = i;
+            break;
+        }
     }
-    for (uint8_t i = 0; i < 3; i++) {
-        for (uint8_t j = 0; j < 4; j++) {
-            if (_bkgColors[i * 4 + j] != _lastBkgColors[i * 4 + j] || _files[i * 4 + j] != _lastFiles[i * 4 + j]) {
-                fillrect(14 + j * 74, 40 + i * 54, 84 + j * 74, 90 + i * 54, _bkgColors[i * 4 + j]);
-                if (_files[i * 4 + j] != "") {
-                    background(_bkgColors[i * 4 + j]);
-                    string name = _files[i * 4 + j];
-                    locate(17 + j * 74, 43 + i * 54);
-                    puts(name.substr(0, 7).c_str());
-                    locate(17 + j * 74, 59 + i * 54);
-                    puts(name.length() > 7 ? name.substr(7, 7).c_str() : "");
-                    locate(30 + j * 74, 75 + i * 54);
-                    puts(name.length() > 14 ? name.substr(14).c_str() : "");
-                    background(Black);
+    _currentFile = newCurrent;  // -1 means “no current file in this bank”
+
+    if (_selectedFile < 0) _selectedFile = 0;
+    if (_selectedFile > 11) _selectedFile = 11;
+    if (_files[_selectedFile].empty()) {
+        // Prefer the current (purple) if valid, else the first non-empty slot
+        if (_currentFile >= 0) {
+            _selectedFile = _currentFile;
+        } else {
+            for (uint8_t i = 0; i < 12; ++i) {
+                if (!_files[i].empty()) {
+                    _selectedFile = i;
+                    break;
                 }
             }
         }
     }
-    copy(begin(_files), end(_files), _lastFiles);
+
+    for (uint8_t i = 0; i < 12; ++i) {
+        if (i == _currentFile)
+            _bkgColors[i] = Purple;  // loaded filename
+        else if (i == _selectedFile)
+            _bkgColors[i] = Blue;  // cursor/selection
+        else
+            _bkgColors[i] = DarkGrey;
+    }
+
+    for (uint8_t i = 0; i < 3; ++i) {
+        for (uint8_t j = 0; j < 4; ++j) {
+            uint8_t k = i * 4 + j;
+
+            const bool colorChanged = (_bkgColors[k] != _lastBkgColors[k]);
+            const bool nameChanged = (_files[k] != _lastFiles[k]);
+
+            if (!colorChanged && !nameChanged) continue;
+
+            uint16_t x0 = 14 + j * 74, y0 = 40 + i * 54;
+            uint16_t x1 = 84 + j * 74, y1 = 90 + i * 54;
+
+            fillrect(x0, y0, x1, y1, _bkgColors[k]);
+
+            if (!_files[k].empty()) {
+                background(_bkgColors[k]);
+                const std::string& name = _files[k];
+                locate(17 + j * 74, 43 + i * 54);
+                puts(name.substr(0, 7).c_str());
+                locate(17 + j * 74, 59 + i * 54);
+                puts(name.size() > 7 ? name.substr(7, 7).c_str() : "");
+                locate(30 + j * 74, 75 + i * 54);
+                puts(name.size() > 14 ? name.substr(14).c_str() : "");
+                background(Black);
+            }
+        }
+    }
+
+    std::copy(std::begin(_files), std::end(_files), std::begin(_lastFiles));
     memcpy(_lastBkgColors, _bkgColors, sizeof(_bkgColors));
     _lastSelectedFile = _selectedFile;
     _lastCurrentFile = _currentFile;
+
+    _banksDirty = false;
 }
 
 void Screen::showTyping(bool show) {
@@ -1031,39 +1095,25 @@ void Screen::showBanks(bool show) {
         _lastBank = bank;
         midiFiles.getFiles(bank, _files);
         resyncSPI();
+
         set_font((unsigned char*)Arial16x16);
         locate(20, 12);
         puts(("Bank " + to_string(bank)).c_str());
         set_font((unsigned char*)Arial12x12);
-        for (uint8_t i = 0; i < 12; i++) {
-            if (i == _selectedFile)
-                _bkgColors[i] = Blue;
-            else
-                _bkgColors[i] = DarkGrey;
-        }
-        for (uint8_t i = 0; i < 3; i++) {
-            for (uint8_t j = 0; j < 4; j++) {
-                fillrect(14 + j * 74, 40 + i * 54, 84 + j * 74, 90 + i * 54, _bkgColors[i * 4 + j]);
-                if (_files[i * 4 + j] != "") {
-                    background(_bkgColors[i * 4 + j]);
-                    string name = _files[i * 4 + j];
-                    locate(17 + j * 74, 43 + i * 54);
-                    puts(name.substr(0, 7).c_str());
-                    locate(17 + j * 74, 59 + i * 54);
-                    puts(name.length() > 7 ? name.substr(7, 7).c_str() : "");
-                    locate(30 + j * 74, 75 + i * 54);
-                    puts(name.length() > 14 ? name.substr(14).c_str() : "");
-                    background(Black);
-                }
-            }
-        }
+
+        for (uint8_t k = 0; k < 12; ++k)
+            _bkgColors[k] = (k == _selectedFile) ? Blue : DarkGrey;
+
+        for (uint8_t k = 0; k < 12; ++k) drawBank(k);
+
+        // snapshot
         copy(begin(_files), end(_files), _lastFiles);
         memcpy(_lastBkgColors, _bkgColors, sizeof(_bkgColors));
         _lastSelectedFile = _selectedFile;
         _lastCurrentFile = _currentFile;
     } else if (!show && _memBanks) {
-        fillrect(10, 40, 310, 200, Black);  // Hide Banks Box
-        fillrect(20, 10, 113, 30, Black);   // Hide Bank Number
+        fillrect(10, 40, 310, 200, Black);
+        fillrect(20, 10, 113, 30, Black);
     }
     _memBanks = show;
 }

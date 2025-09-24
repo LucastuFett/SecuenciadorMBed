@@ -85,6 +85,7 @@ class Screen : public SPI_TFT_ILI9341 {
     bool _lastHalf = false;
     bool _launchpad = false;
     bool _config = false;
+    bool _banksDirty = false;
     uint8_t _lastBank = 1;
     uint8_t _lastHold = 0;
     int8_t _lastVel = 127;
@@ -144,6 +145,9 @@ class Screen : public SPI_TFT_ILI9341 {
 
     // Resync SPI after an SD change
     void resyncSPI();
+
+    // Draw one bank
+    void drawBank(uint8_t idx);
 
     // Update Text Writing
     void updateMemoryText();

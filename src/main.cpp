@@ -210,7 +210,12 @@ void selectFunc() {
             screen.selectLetter();  // When writing, select the letter
             break;
         case SAVELOAD:
-            filename = screen.getFilename();  // Change current filename
+            messagesMutex.lock();
+            filename = screen.getFilename();
+            midiFiles.readFromFile(midiMessages, offMessages, tempo, filename, bank, mode, tone);
+            buttons.updateStructures();
+            messagesMutex.unlock();
+            mainState = PROG;
             break;
         case PLAY:
             if (timer.isRunning()) {  // If playing, queue next song
