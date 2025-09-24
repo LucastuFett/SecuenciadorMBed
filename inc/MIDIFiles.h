@@ -18,7 +18,7 @@ class BlockDeviceHolder {
     BlockDevice *_blockDevice;
     bool _heap = false;
 
-    BlockDeviceHolder() : _picoBD(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS),
+    BlockDeviceHolder() : _picoBD(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS, 15000000ULL),
                           _heapBD(HEAP_BLOCK_DEVICE_SIZE, DEFAULT_BLOCK_SIZE),
                           _blockDevice(&_picoBD) {
         // Try to init SD card first

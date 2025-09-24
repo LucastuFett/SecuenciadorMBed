@@ -169,6 +169,7 @@ void Screen::right() {
 }
 
 void Screen::updateScreen() {
+    resyncSPI();
     if (_lastState != mainState) coverTitle();
     switch (mainState) {
         case MAIN:
@@ -578,8 +579,9 @@ void Screen::showConfig(bool show) {
         locate(200, 190);
         string s = clockSource ? "MIDI" : "USB";
         puts(("Clock: " + s).c_str());
-    } else
+    } else if (!show && _config)
         fillrect(40, 189, 320, 210, Black);
+    _config = show;
 }
 
 // Piano Functions
@@ -904,6 +906,15 @@ void Screen::updateHold() {
 
 // Memory Functions
 
+void Screen::resyncSPI() {
+    _cs = 1;
+    _dc = 1;
+    ThisThread::sleep_for(1ms);
+    _spi.format(8, 3);
+    _spi.frequency(20000000);
+    WindowMax();
+}
+
 void Screen::updateMemoryText() {
     string name = "";
     set_font((unsigned char*)Arial16x16);
@@ -963,7 +974,7 @@ void Screen::updateMemoryText() {
 
 void Screen::updateBanks() {
     midiFiles.getFiles(bank, _files);
-    ThisThread::sleep_for(100ms);  // Wait a bit to ensure the files are loaded
+    resyncSPI();
 
     if (bank != _lastBank) {
         set_font((unsigned char*)Arial16x16);
@@ -1003,7 +1014,6 @@ void Screen::updateBanks() {
     memcpy(_lastBkgColors, _bkgColors, sizeof(_bkgColors));
     _lastSelectedFile = _selectedFile;
     _lastCurrentFile = _currentFile;
-    ThisThread::sleep_for(100ms);  // Wait a bit to ensure title is written
 }
 
 void Screen::showTyping(bool show) {
@@ -1020,7 +1030,7 @@ void Screen::showBanks(bool show) {
     if (show && !_memBanks) {
         _lastBank = bank;
         midiFiles.getFiles(bank, _files);
-        ThisThread::sleep_for(100ms);  // Wait a bit to ensure the files are loaded
+        resyncSPI();
         set_font((unsigned char*)Arial16x16);
         locate(20, 12);
         puts(("Bank " + to_string(bank)).c_str());
