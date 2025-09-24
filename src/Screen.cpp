@@ -18,6 +18,8 @@ extern int8_t velocity;
 extern uint32_t beatsPerTone[1536];                   // Beats per tone structure
 extern map<holdKey, uint8_t, CompareHoldKey> holded;  // Holds the start and end of held notes
 extern uint8_t hold;                                  // Hold state: 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
+extern bool usbMode;
+extern bool clockSource;
 extern string filename;
 extern string renameFilename;
 extern uint8_t bank;
@@ -174,8 +176,10 @@ void Screen::updateScreen() {
             showPiano(false);
             showBanks(false);
             showLaunchpad(false);
+            showConfig(true);
             break;
         case PROG:
+            showConfig(false);
             showTyping(false);
             showBanks(false);
             showMenu(true);
@@ -236,11 +240,13 @@ void Screen::updateScreen() {
             updateMemoryText();
             break;
         case PLAY:
+            showConfig(false);
             showBanks(true);
             updateBanks();
             break;
         case LAUNCH:
         case DAW:
+            showConfig(false);
             showLaunchpad(true);
             updateLaunch();
             break;
@@ -561,6 +567,19 @@ void Screen::updateMenuText(uint8_t menu) {
         default:
             break;
     }
+}
+
+void Screen::showConfig(bool show) {
+    if (show) {
+        locate(40, 190);
+        string m = usbMode ? "Drive" : "MIDI";
+        puts(("USB Mode: " + m).c_str());
+
+        locate(200, 190);
+        string s = clockSource ? "MIDI" : "USB";
+        puts(("Clock: " + s).c_str());
+    } else
+        fillrect(40, 189, 320, 210, Black);
 }
 
 // Piano Functions

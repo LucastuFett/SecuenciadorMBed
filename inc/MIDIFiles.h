@@ -1,45 +1,52 @@
-#include "mbed.h"
-#include "testFiles.h"
-#include "USBMSD.h"
+#include "FATFileSystem.h"
 #include "HeapBlockDevice.h"
 #include "PicoSDBlockDevice.h"
-#include "FATFileSystem.h"
+#include "USBMSD.h"
 #include "USBPhyHw.h"
+#include "mbed.h"
+#include "testFiles.h"
 #include "usb_phy_api.h"
 
-#define DEFAULT_BLOCK_SIZE  512
+#define DEFAULT_BLOCK_SIZE 512
 #define HEAP_BLOCK_DEVICE_SIZE (128 * DEFAULT_BLOCK_SIZE)
 
 class BlockDeviceHolder {
-protected:
+   protected:
     PicoSDBlockDevice _picoBD;
     HeapBlockDevice _heapBD;
-    BlockDevice* _blockDevice;
-    
-    BlockDeviceHolder() : 
-        _picoBD(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS),
-        _heapBD(HEAP_BLOCK_DEVICE_SIZE, DEFAULT_BLOCK_SIZE),
-        _blockDevice(&_picoBD)
-    {}
+    BlockDevice *_blockDevice;
+    bool _heap = false;
+
+    BlockDeviceHolder() : _picoBD(MBED_CONF_SD_SPI_MOSI, MBED_CONF_SD_SPI_MISO, MBED_CONF_SD_SPI_CLK, MBED_CONF_SD_SPI_CS),
+                          _heapBD(HEAP_BLOCK_DEVICE_SIZE, DEFAULT_BLOCK_SIZE),
+                          _blockDevice(&_picoBD) {
+        // Try to init SD card first
+        int err = _picoBD.init();
+        if (err == 0) {
+            _blockDevice = &_picoBD;
+        } else {
+            // Fall back to heap
+            _picoBD.deinit();
+            _blockDevice = &_heapBD;
+            _heapBD.init();
+            _heap = true;
+        }
+    }
 };
 
-
-class MIDIFiles : private BlockDeviceHolder, public USBMSD{
+class MIDIFiles : private BlockDeviceHolder, public USBMSD {
     FATFileSystem _fs;
     vector<uint8_t> _mtrk;
     bool _usb = false;
-    bool _heap = false;
 
     virtual const uint8_t *string_iproduct_desc() override {
-            static const uint8_t custom_desc[] = {
-                0x1A, STRING_DESCRIPTOR,
-                'L', 0, 'u', 0, 'c', 0, 'a', 0, 's', 0, ' ', 0, 'G', 0, 'r', 0, 'o', 0, 'o', 0, 'v', 0, 'e', 0
-            };
-            return custom_desc;
+        static const uint8_t custom_desc[] = {
+            0x1A, STRING_DESCRIPTOR,
+            'L', 0, 'u', 0, 'c', 0, 'a', 0, 's', 0, ' ', 0, 'G', 0, 'r', 0, 'o', 0, 'o', 0, 'v', 0, 'e', 0};
+        return custom_desc;
     }
 
-    std::string trim(const std::string &s)
-    {
+    std::string trim(const std::string &s) {
         std::string::const_iterator it = s.begin();
         while (it != s.end() && isspace(*it))
             it++;
@@ -51,7 +58,7 @@ class MIDIFiles : private BlockDeviceHolder, public USBMSD{
         return std::string(it, rit.base());
     }
 
-    uint32_t get32(FILE *f){
+    uint32_t get32(FILE *f) {
         uint8_t msb = fgetc(f);
         uint8_t smsb = fgetc(f);
         uint8_t tmsb = fgetc(f);
@@ -59,7 +66,7 @@ class MIDIFiles : private BlockDeviceHolder, public USBMSD{
         return (msb << 24) | (smsb << 16) | (tmsb << 8) | lsb;
     }
 
-    uint32_t get16(FILE *f){
+    uint32_t get16(FILE *f) {
         uint8_t msb = fgetc(f);
         uint8_t lsb = fgetc(f);
         return (msb << 8) | lsb;
@@ -72,10 +79,11 @@ class MIDIFiles : private BlockDeviceHolder, public USBMSD{
 
     // Load Test FIles
     void loadTestFiles();
-public:
+
+   public:
     // Constructor
     MIDIFiles();
-    
+
     // Create Directory Structure
     void init();
 

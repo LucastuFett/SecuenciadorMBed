@@ -22,13 +22,13 @@
 #if DEVICE_SPI
 
 #include "blockdevice/BlockDevice.h"
+#include "drivers/DigitalOut.h"
+#include "drivers/MbedCRC.h"
 #include "drivers/SPI.h"
 #include "drivers/Timer.h"
-#include "drivers/MbedCRC.h"
-#include "drivers/DigitalOut.h"
+#include "hal/static_pinmap.h"
 #include "platform/platform.h"
 #include "rtos/Mutex.h"
-#include "hal/static_pinmap.h"
 
 #ifndef MBED_CONF_SD_SPI_MOSI
 #define MBED_CONF_SD_SPI_MOSI NC
@@ -46,7 +46,7 @@
 #define MBED_CONF_SD_INIT_FREQUENCY 100000
 #endif
 #ifndef MBED_CONF_SD_TRX_FREQUENCY
-#define MBED_CONF_SD_TRX_FREQUENCY  1000000
+#define MBED_CONF_SD_TRX_FREQUENCY 1000000
 #endif
 #ifndef MBED_CONF_SD_CRC_ENABLED
 #define MBED_CONF_SD_CRC_ENABLED 0
@@ -57,11 +57,10 @@
  * Access an SD Card using SPI bus
  */
 class PicoSDBlockDevice : public mbed::BlockDevice {
-
     // Only HC block size is supported. Making this a static constant reduces code size.
     static constexpr uint32_t _block_size = 512; /*!< Block size supported for SDHC card is 512 bytes  */
 
-public:
+   public:
     /** Creates an PicoSDBlockDevice on a SPI bus specified by pins (using dynamic pin-map)
      *
      *  @param mosi     SPI master out, slave in pin
@@ -72,11 +71,11 @@ public:
      *  @param crc_on   Enable cyclic redundancy check (defaults to disabled)
      */
     PicoSDBlockDevice(PinName mosi = MBED_CONF_SD_SPI_MOSI,
-                  PinName miso = MBED_CONF_SD_SPI_MISO,
-                  PinName sclk = MBED_CONF_SD_SPI_CLK,
-                  PinName cs = MBED_CONF_SD_SPI_CS,
-                  uint64_t hz = MBED_CONF_SD_TRX_FREQUENCY,
-                  bool crc_on = MBED_CONF_SD_CRC_ENABLED);
+                      PinName miso = MBED_CONF_SD_SPI_MISO,
+                      PinName sclk = MBED_CONF_SD_SPI_CLK,
+                      PinName cs = MBED_CONF_SD_SPI_CS,
+                      uint64_t hz = MBED_CONF_SD_TRX_FREQUENCY,
+                      bool crc_on = MBED_CONF_SD_CRC_ENABLED);
 
     /** Creates an PicoSDBlockDevice on a SPI bus specified by pins (using static pin-map)
      *
@@ -86,9 +85,9 @@ public:
      *  @param crc_on     Enable cyclic redundancy check (defaults to disabled)
      */
     PicoSDBlockDevice(const spi_pinmap_t &spi_pinmap,
-                  PinName cs = MBED_CONF_SD_SPI_CS,
-                  uint64_t hz = MBED_CONF_SD_TRX_FREQUENCY,
-                  bool crc_on = MBED_CONF_SD_CRC_ENABLED);
+                      PinName cs = MBED_CONF_SD_SPI_CS,
+                      uint64_t hz = MBED_CONF_SD_TRX_FREQUENCY,
+                      bool crc_on = MBED_CONF_SD_CRC_ENABLED);
 
     virtual ~PicoSDBlockDevice();
 
@@ -212,7 +211,13 @@ public:
      */
     virtual const char *get_type() const;
 
-private:
+    /** Puts the card into a safe, idle state for handover to another bus master.
+     *
+     * @return         BD_ERROR_OK(0) - success
+     */
+    virtual int go_idle();
+
+   private:
     /* Commands : Listed below are commands supported
      * in SPI mode for SD card : Only Mandatory ones
      */
@@ -276,18 +281,18 @@ private:
     bool _is_valid_trim(mbed::bd_addr_t addr, mbed::bd_size_t size);
 
     /* SPI functions */
-    mbed::Timer _spi_timer;               /**< Timer Class object used for busy wait */
-    uint32_t _init_sck;             /**< Initial SPI frequency */
-    uint32_t _transfer_sck;         /**< SPI frequency during data transfer/after initialization */
-    mbed::SPI _spi;                       /**< SPI Class object */
+    mbed::Timer _spi_timer; /**< Timer Class object used for busy wait */
+    uint32_t _init_sck;     /**< Initial SPI frequency */
+    uint32_t _transfer_sck; /**< SPI frequency during data transfer/after initialization */
+    mbed::SPI _spi;         /**< SPI Class object */
 
     /* SPI initialization function */
     void _spi_init();
     uint8_t _cmd_spi(PicoSDBlockDevice::cmdSupported cmd, uint32_t arg);
     void _spi_wait(uint8_t count);
 
-    bool _wait_token(uint8_t token);        /**< Wait for token */
-    bool _wait_ready(std::chrono::duration<uint32_t, std::milli> timeout = std::chrono::milliseconds{300});    /**< 300ms default wait for card to be ready */
+    bool _wait_token(uint8_t token);                                                                        /**< Wait for token */
+    bool _wait_ready(std::chrono::duration<uint32_t, std::milli> timeout = std::chrono::milliseconds{300}); /**< 300ms default wait for card to be ready */
     int _read(uint8_t *buffer, uint32_t length);
     int _read_bytes(uint8_t *buffer, uint32_t length);
     uint8_t _write(const uint8_t *buffer, uint8_t token, uint32_t length);
@@ -295,13 +300,11 @@ private:
     void _preclock_then_select();
     void _postclock_then_deselect();
 
-    virtual void lock()
-    {
+    virtual void lock() {
         _mutex.lock();
     }
 
-    virtual void unlock()
-    {
+    virtual void unlock() {
         _mutex.unlock();
     }
 
@@ -321,6 +324,6 @@ private:
 #endif
 };
 
-#endif  /* DEVICE_SPI */
+#endif /* DEVICE_SPI */
 
-#endif  /* MBED_SD_BLOCK_DEVICE_H */
+#endif /* MBED_SD_BLOCK_DEVICE_H */

@@ -1,42 +1,42 @@
 #pragma once
-#include "definitions.h"
 #include "SPI_TFT_ILI9341.h"
+#include "definitions.h"
 
 // Constants
 
-const string labels[12][8] = {{"Sequencer", "Play", "Launch", "DAW","","USBMIDI","USBMSD",""},
-				{"Note", "Play/Pause", "Stop", "Hold","Memory","Channel","Tempo","Scale"},
-				{"Accept", "Octave -", "Octave +", "Cancel","","","",""},
-				{"Save","Shift","Backspace","Load","","Special","Space",""},
-				{"Accept","Bank -","Bank +","Cancel","","Rename","Delete",""},
-				{"Save","Shift","Backspace","Cancel","","Special","Space",""},
-				{"Accept","","","Cancel","","","",""},
-				{"Accept","Internal","External","Cancel","","Half","Double",""},
-				{"Accept","Mode -","Mode +","Cancel","","","",""},
-				{"Play/Pause","Bank -","Bank +","Stop","","","",""},
-                {"Tone -","Mode -","Mode +","Tone +","","Channel -","Channel +",""},
-                {"","","","","","","",""}};
+const string labels[12][8] = {{"Sequencer", "Play", "Launch", "DAW", "MIDI", "Drive", "USB", "MIDI"},
+                              {"Note", "Play/Pause", "Stop", "Hold", "Memory", "Channel", "Tempo", "Scale"},
+                              {"Accept", "Octave -", "Octave +", "Cancel", "", "", "", ""},
+                              {"Save", "Shift", "Backspace", "Load", "", "Special", "Space", ""},
+                              {"Accept", "Bank -", "Bank +", "Cancel", "", "Rename", "Delete", ""},
+                              {"Save", "Shift", "Backspace", "Cancel", "", "Special", "Space", ""},
+                              {"Accept", "", "", "Cancel", "", "", "", ""},
+                              {"Accept", "Internal", "External", "Cancel", "", "Half", "Double", ""},
+                              {"Accept", "Mode -", "Mode +", "Cancel", "", "", "", ""},
+                              {"Play/Pause", "Bank -", "Bank +", "Stop", "", "", "", ""},
+                              {"Tone -", "Mode -", "Mode +", "Tone +", "", "Channel -", "Channel +", ""},
+                              {"", "", "", "", "", "", "", ""}};
 
-const string titles[] = {"Main", 
-				"Edit Seq", 
-				"Edit Note",
-				"Memory",
-				"Save/Load",
-				"Rename",
-				"Edit Channel",
-				"Edit Tempo",
-				"Edit Scale",
-				"Play",
-                "Launchpad/Keyboard",
-                "DAW"};
-				
+const string titles[] = {"Main",
+                         "Edit Seq",
+                         "Edit Note",
+                         "Memory",
+                         "Save/Load",
+                         "Rename",
+                         "Edit Channel",
+                         "Edit Tempo",
+                         "Edit Scale",
+                         "Play",
+                         "Launchpad/Keyboard",
+                         "DAW"};
+
 const char letters[] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
- 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+                        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
 
 const char shLetters[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
- 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
+                          'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
 
-const char special[] = {'0','1','2','3','4','5','6','7','8','9','\'','.',',','/',':',';','-','_','?','!','"'};
+const char special[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '\'', '.', ',', '/', ':', ';', '-', '_', '?', '!', '"'};
 
 const string tones[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
@@ -57,8 +57,7 @@ const uint16_t launchColorsScr[] = {
     0xD423,
     0x43BF,
     0x0421,
-    0xF984
-};
+    0xF984};
 
 class Screen : public SPI_TFT_ILI9341 {
     int8_t _typePointer;
@@ -70,7 +69,7 @@ class Screen : public SPI_TFT_ILI9341 {
     int8_t _selectedFile;
     int8_t _currentFile;
     int8_t _curOctave;
-    vector <uint16_t> _possible[2];
+    vector<uint16_t> _possible[2];
     char _typing[18];
     string _files[12];
     uint16_t _bkgColors[12];
@@ -99,7 +98,6 @@ class Screen : public SPI_TFT_ILI9341 {
     int8_t _lastLaunchOctave = 0;
     int8_t _lastLaunchChn = 16;
 
-
     // General Functions
 
     // Cover Title
@@ -107,7 +105,7 @@ class Screen : public SPI_TFT_ILI9341 {
 
     // Updates Screen Text, Leaving Graphics
     void updateText();
-    
+
     // Shows or Hides Menus
     void showMenu(bool show);
 
@@ -121,10 +119,13 @@ class Screen : public SPI_TFT_ILI9341 {
     */
     void updateMenuText(uint8_t menu);
 
+    // Shows or Hides Configurations
+    void showConfig(bool show);
+
     // Piano Functions
 
     // Get Possible Notes for the current scale
-    void getPossible(vector <uint16_t> possible[2], int8_t tone, int8_t mode);
+    void getPossible(vector<uint16_t> possible[2], int8_t tone, int8_t mode);
 
     // Paint Scales and Selected Notes
     void paintScales();
@@ -158,13 +159,13 @@ class Screen : public SPI_TFT_ILI9341 {
     void showLaunchpad(bool show);
 
     // Updates Launchpad
-    void updateLaunch();    
+    void updateLaunch();
 
-public:
+   public:
     // General Functions
 
     // Constructor
-    Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char* name ="TFT");
+    Screen(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset, PinName dc, const char* name = "TFT");
 
     // Set the Default Text and Graphics
     void init();
@@ -185,7 +186,7 @@ public:
 
     // Select a letter when Writing
     void selectLetter();
-    
+
     // Get filename from selected file
     string getFilename();
 
@@ -211,6 +212,4 @@ public:
 
     // Update Typing Text at Pointer
     void setTyping(char type);
-
-
 };

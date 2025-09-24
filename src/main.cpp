@@ -77,9 +77,9 @@ void timeout();
 // Composition
 
 Screen screen(p27, p28, p26, p22, NC, p21, "TFT");
+MIDIFiles midiFiles;
 MIDITimer timer(callback(timeout));
 Buttons buttons;
-MIDIFiles midiFiles;
 
 // Programming Mode
 
@@ -116,6 +116,8 @@ int8_t velocity = 127;
 bool half = false;
 int16_t tempo[2] = {0, 120};  // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
 uint8_t hold = 0;             // 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
+bool usbMode = false;         // false = MIDI, true = MSD
+bool clockSource = false;     // false = USB, true = UART
 
 // Memory Variables
 
@@ -239,6 +241,16 @@ void selectFunc() {
 void function1() {
     switch (mainState) {
         case MAIN:
+            if (shift) {  // If USBMIDI mode is disabled, enable it
+                if (!timer.getUSB()) {
+                    midiFiles.deinitUSB();
+                    timer.initUSB();
+                }
+                usbMode = !timer.getUSB();
+                shift = false;
+            } else
+                mainState = PROG;
+            break;
         case NOTE:
         case SCALE:
         case TEMPO:
@@ -246,7 +258,7 @@ void function1() {
             mainState = PROG;
             break;
         case PROG:
-            if (shift) {  // Go to memory mode
+            if (shift && !usbMode) {  // Go to memory mode if fs not used
                 screen.setEdit(0);
                 mainState = MEMORY;
                 shift = false;
@@ -298,13 +310,15 @@ void function1() {
 void function2() {
     switch (mainState) {
         case MAIN:
-            if (shift) {  // If USBMIDI mode is disabled, enable it
-                if (!timer.getUSB()) {
-                    midiFiles.deinitUSB();
-                    timer.initUSB();
+            if (shift) {  // If USBMSD disabled, enable it
+                if (!midiFiles.getUSB()) {
+                    timer.deinitUSB();
+                    midiFiles.initUSB();
                 }
+                usbMode = midiFiles.getUSB();
+                clockSource = true;
                 shift = false;
-            } else
+            } else if (!usbMode)
                 mainState = PLAY;
             break;
         case PROG:
@@ -397,11 +411,8 @@ void function2() {
 void function3() {
     switch (mainState) {
         case MAIN:
-            if (shift) {  // If USBMSD disabled, enable it
-                if (!midiFiles.getUSB()) {
-                    timer.deinitUSB();
-                    midiFiles.initUSB();
-                }
+            if (shift) {
+                if (!usbMode) clockSource = false;
                 shift = false;
             } else
                 mainState = LAUNCH;
@@ -484,7 +495,11 @@ void function3() {
 void function4() {
     switch (mainState) {
         case MAIN:
-            mainState = DAW;
+            if (shift) {
+                clockSource = true;
+                shift = false;
+            } else
+                mainState = DAW;
             break;
         case NOTE:
             note = prevNote;
@@ -717,6 +732,8 @@ int main() {
     midiFiles.init();
     timerThread.start(pollTimer);
     ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0]));  // Update LED strip
+    if (!timer.getUSB()) clockSource = true;
+    screen.updateScreen();
 
 #if TESTING_MODES
 
@@ -796,10 +813,11 @@ int main() {
         }
 #endif
         if (midiFiles.getUSB()) midiFiles.process();  // If it's in USBMSD, process USB messages
+        /*
         if (midiFiles.media_removed() && midiFiles.getUSB()) {
             midiFiles.deinitUSB();
             timer.initUSB();
-        }
+        }*/
 
         ledDataMutex.lock();
         if (memcmp(ledData, lastLedData, sizeof(ledData)) != 0) {

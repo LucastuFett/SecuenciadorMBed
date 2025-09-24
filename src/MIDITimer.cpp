@@ -8,6 +8,8 @@ extern uint8_t channels[16];          // Active channels
 extern int8_t beat;                   // Current beat index
 extern bool channelEnabled[16];
 extern int16_t tempo[2];  // Tempo
+extern bool usbMode;
+extern bool clockSource;
 
 extern Mutex messagesMutex;
 extern Mutex controlMutex;
@@ -26,7 +28,15 @@ MIDITimer::MIDITimer(Callback<void()> timeoutCallback) : USBMIDI(get_usb_phy(), 
     _playing = false;
     _usb = false;
     _interval = static_cast<us_timestamp_t>((60.0 * 1'000'000) / (tempo[1] * 2));
-    initUSB();
+
+    USBMIDI::connect();
+    ThisThread::sleep_for(500ms);
+    if (configured()) {
+        _usb = true;
+        attach(callback(this, &MIDITimer::onUSBMessageISR));
+        _usbThread.start(callback(&_usbQueue, &EventQueue::dispatch_forever));
+        _usbThread.set_priority(osPriorityHigh);
+    }
 
     _midiUART.set_format(8, BufferedSerial::None, 1);
     _midiUART.set_flow_control(BufferedSerial::Disabled);
@@ -37,7 +47,8 @@ void MIDITimer::initUSB() {
     ThisThread::sleep_for(500ms);
     if (configured()) {
         _usb = true;
-        attach(callback(this, &MIDITimer::onUSBMessageISR));
+        _usbThread.~Thread();
+        new (&_usbThread) Thread();
         _usbThread.start(callback(&_usbQueue, &EventQueue::dispatch_forever));
         _usbThread.set_priority(osPriorityHigh);
     }
@@ -128,7 +139,7 @@ void MIDITimer::onUSBMessageISR() {
 
 void MIDITimer::checkUSB() {
     MIDIMessage m;
-    if (read(&m)) {
+    if (read(&m) && !clockSource) {
         if ((m.data[1] & 0xF0) == 0xF0) {  // System
             switch (m.data[1]) {
                 case 0xF8:  // Timing Clock
@@ -164,7 +175,7 @@ void MIDITimer::checkUSB() {
 
 void MIDITimer::checkMIDI() {
     char byte;
-    if (!_usb) {
+    if (clockSource) {
         while (_midiUART.read(&byte, 1)) {
             if ((byte & 0xF0) == 0xF0) {  // System
                 switch (byte) {

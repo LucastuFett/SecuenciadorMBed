@@ -1,17 +1,16 @@
 #pragma once
-#include "mbed.h"
 #include "USBMIDI.h"
 #include "USBPhyHw.h"
+#include "mbed.h"
 #include "usb_phy_api.h"
 
-
-class MIDITimer : public USBMIDI{
+class MIDITimer : public USBMIDI {
     bool _playing;
     us_timestamp_t _interval;
     Timer _timer;
-    Callback <void()> _timeoutCallback;
+    Callback<void()> _timeoutCallback;
     bool _usb;
-    int16_t _lastTempo[2] = {0,120};
+    int16_t _lastTempo[2] = {0, 120};
     BufferedSerial _midiUART;
     uint8_t _clockPulses = 0;
 
@@ -21,12 +20,9 @@ class MIDITimer : public USBMIDI{
     virtual const uint8_t *string_iproduct_desc() override {
         static const uint8_t custom_desc[] = {
             0x1A, STRING_DESCRIPTOR,
-            'L', 0, 'u', 0, 'c', 0, 'a', 0, 's', 0, ' ', 0, 'G', 0, 'r', 0, 'o', 0, 'o', 0, 'v', 0, 'e', 0
-        };
+            'L', 0, 'u', 0, 'c', 0, 'a', 0, 's', 0, ' ', 0, 'G', 0, 'r', 0, 'o', 0, 'o', 0, 'v', 0, 'e', 0};
         return custom_desc;
     }
-
-    
 
     // Start the timer with saved interval
     void start();
@@ -40,9 +36,9 @@ class MIDITimer : public USBMIDI{
     // ISR management
     void onUSBMessageISR();
 
-public:
+   public:
     // Constructor
-    MIDITimer(Callback <void()> timeoutCallback);
+    MIDITimer(Callback<void()> timeoutCallback);
 
     // Connect USBMIDI Device
     void initUSB();
@@ -63,7 +59,7 @@ public:
     bool isRunning() const;
 
     // Poll the timer to check if the interval has elapsed
-    void poll() ;
+    void poll();
 
     // Send the corresponding MIDI messages for the current beat
     void beatPlay();
@@ -73,7 +69,7 @@ public:
 
     // Send an All Notes Off for just one channel
     void allNotesOff(uint8_t channel);
-    
+
     // Send Arbitrary MIDI Message
     void send(uint8_t status, uint8_t data1, uint8_t data2);
 };
