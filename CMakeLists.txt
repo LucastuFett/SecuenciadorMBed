@@ -74,8 +74,9 @@ add_subdirectory(mbed-os)
 ### add executable (necessary everytime)
 # This will compile an elf file named the same as the project with the given source files.
 add_executable(${PROJECT_NAME} 
-    # src/main.cpp 
-    src/DeviceTest.cpp
+    src/main.cpp 
+    #tests/DeviceTest.cpp
+    #tests/TestTimer.cpp
     src/MIDITimer.cpp
     src/Buttons.cpp
     src/Screen.cpp
