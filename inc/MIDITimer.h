@@ -13,6 +13,7 @@ class MIDITimer : public USBMIDI {
     int16_t _lastTempo[2] = {0, 120};
     BufferedSerial _midiUART;
     uint8_t _clockPulses = 0;
+    uint8_t _nextOff = 0;
 
     Thread _usbThread;
     EventQueue _usbQueue;
