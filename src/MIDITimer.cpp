@@ -20,7 +20,7 @@ extern Mutex beatMutex;
 Mutex playingMutex;
 Mutex clockMutex;
 
-MIDITimer::MIDITimer(Callback<void()> timeoutCallback) : USBMIDI(get_usb_phy(), 0x0700, 0x0101, 1),
+MIDITimer::MIDITimer(Callback<void()> timeoutCallback) : USBMIDI(get_usb_phy(), 0x0700, 0x0101, 2),
                                                          _timeoutCallback(timeoutCallback),
                                                          _midiUART(p20, p5, 31250),
                                                          _usbQueue(32 * EVENTS_EVENT_SIZE) {

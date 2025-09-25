@@ -17,11 +17,30 @@ class MIDITimer : public USBMIDI {
     Thread _usbThread;
     EventQueue _usbQueue;
 
-    virtual const uint8_t *string_iproduct_desc() override {
+    virtual const uint8_t* string_iproduct_desc() override {
         static const uint8_t custom_desc[] = {
             0x1A, STRING_DESCRIPTOR,
             'L', 0, 'u', 0, 'c', 0, 'a', 0, 's', 0, ' ', 0, 'G', 0, 'r', 0, 'o', 0, 'o', 0, 'v', 0, 'e', 0};
         return custom_desc;
+    }
+
+    virtual const uint8_t* configuration_desc(uint8_t index) override {
+        const uint8_t* base = USBMIDI::configuration_desc(index);
+        if (!base) return nullptr;
+
+        const uint16_t len = static_cast<uint16_t>(base[2]) | (static_cast<uint16_t>(base[3]) << 8);
+
+        // Make a local copy we can edit; 0x65 is the current size in mbed's USBMIDI
+        static uint8_t cfg[0x65];
+        const uint16_t n = (len <= sizeof(cfg)) ? len : sizeof(cfg);
+        memcpy(cfg, base, n);
+
+        // cfg[7] = bmAttributes; cfg[8] = bMaxPower (units of 2 mA)
+        // Example 1: Bus-powered, 100 mA
+        cfg[7] = 0xC0;
+        cfg[8] = 100;  // 100 * 2 mA = 200 mA
+
+        return cfg;
     }
 
     // Start the timer with saved interval
