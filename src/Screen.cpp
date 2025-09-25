@@ -20,6 +20,7 @@ extern map<holdKey, uint8_t, CompareHoldKey> holded;  // Holds the start and end
 extern uint8_t hold;                                  // Hold state: 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
 extern bool usbMode;
 extern bool clockSource;
+extern bool usbData;
 extern string filename;
 extern string renameFilename;
 extern uint8_t bank;
@@ -94,24 +95,32 @@ void Screen::init() {
     locate(242, 228);
     puts(labels[mainState][3].c_str());
 
-    // Display the shift labels
-    background(White);
-    foreground(Black);
-    fillrect(7, 211, 78, 223, White);
-    locate(8, 212);
-    puts(labels[mainState][4].c_str());
-    fillrect(85, 211, 156, 223, White);
-    locate(86, 212);
-    puts(labels[mainState][5].c_str());
-    fillrect(163, 211, 234, 223, White);
-    locate(164, 212);
-    puts(labels[mainState][6].c_str());
-    fillrect(241, 211, 312, 223, White);
-    locate(242, 212);
-    puts(labels[mainState][7].c_str());
+    if (mainState == MAIN && !usbData) {
+        fillrect(7, 211, 78, 223, White);
+        fillrect(85, 211, 156, 223, White);
+        fillrect(163, 211, 234, 223, White);
+        fillrect(241, 211, 312, 223, White);
 
-    background(Black);
-    foreground(White);
+    } else {
+        // Display the shift labels
+        background(White);
+        foreground(Black);
+        fillrect(7, 211, 78, 223, White);
+        locate(8, 212);
+        puts(labels[mainState][4].c_str());
+        fillrect(85, 211, 156, 223, White);
+        locate(86, 212);
+        puts(labels[mainState][5].c_str());
+        fillrect(163, 211, 234, 223, White);
+        locate(164, 212);
+        puts(labels[mainState][6].c_str());
+        fillrect(241, 211, 312, 223, White);
+        locate(242, 212);
+        puts(labels[mainState][7].c_str());
+
+        background(Black);
+        foreground(White);
+    }
 }
 
 void Screen::left() {
@@ -185,13 +194,13 @@ void Screen::updateScreen() {
             showBanks(false);
             showMenu(true);
             showPiano(true);
-            paintGrid();
             if (velocity != _lastVel) {
                 updateMenuText(4);
                 _lastVel = velocity;
             }
             if (half != _lastHalf) {
                 updateMenuText(5);
+                _fullGrid = true;
                 _lastHalf = half;
             }
             if (hold != _lastHold) {
@@ -200,8 +209,10 @@ void Screen::updateScreen() {
             }
             if (mode32 != _lastMode32) {
                 updateMenuText(6);
+                _fullGrid = true;
                 _lastMode32 = mode32;
             }
+            paintGrid();
             break;
         case NOTE:
             paintScales();
@@ -425,24 +436,32 @@ void Screen::updateText() {
     locate(242, 228);
     puts(labels[mainState][3].c_str());
 
-    // Display the shift labels
-    background(White);
-    foreground(Black);
-    fillrect(7, 211, 78, 223, White);
-    locate(8, 212);
-    puts(labels[mainState][4].c_str());
-    fillrect(85, 211, 156, 223, White);
-    locate(86, 212);
-    puts(labels[mainState][5].c_str());
-    fillrect(163, 211, 234, 223, White);
-    locate(164, 212);
-    puts(labels[mainState][6].c_str());
-    fillrect(241, 211, 312, 223, White);
-    locate(242, 212);
-    puts(labels[mainState][7].c_str());
+    if (mainState == MAIN && !usbData) {
+        fillrect(7, 211, 78, 223, White);
+        fillrect(85, 211, 156, 223, White);
+        fillrect(163, 211, 234, 223, White);
+        fillrect(241, 211, 312, 223, White);
 
-    background(Black);
-    foreground(White);
+    } else {
+        // Display the shift labels
+        background(White);
+        foreground(Black);
+        fillrect(7, 211, 78, 223, White);
+        locate(8, 212);
+        puts(labels[mainState][4].c_str());
+        fillrect(85, 211, 156, 223, White);
+        locate(86, 212);
+        puts(labels[mainState][5].c_str());
+        fillrect(163, 211, 234, 223, White);
+        locate(164, 212);
+        puts(labels[mainState][6].c_str());
+        fillrect(241, 211, 312, 223, White);
+        locate(242, 212);
+        puts(labels[mainState][7].c_str());
+
+        background(Black);
+        foreground(White);
+    }
 }
 
 void Screen::showMenu(bool show) {
@@ -573,7 +592,7 @@ void Screen::updateMenuText(uint8_t menu) {
 }
 
 void Screen::showConfig(bool show) {
-    if (show) {
+    if (show && usbData) {
         locate(40, 190);
         string m = usbMode ? "Drive" : "MIDI";
         puts(("USB Mode: " + m).c_str());
@@ -581,7 +600,7 @@ void Screen::showConfig(bool show) {
         locate(200, 190);
         string s = clockSource ? "MIDI" : "USB";
         puts(("Clock: " + s).c_str());
-    } else if (!show && _config)
+    } else if (!show && _config && usbData)
         fillrect(40, 189, 320, 210, Black);
     _config = show;
 }
@@ -844,7 +863,7 @@ void Screen::paintGrid() {
             bool c = (holdNote == note && gridOctave == octave);
             bool l = (holdNote == _lastNote && gridOctave == _lastOctave);
 
-            if (((!mode32) && (n || e)) || (n && !half) || ((!n) && (!e) && mode32 && half) || !c || !l) continue;
+            if (((!mode32) && (n || e)) || (n && !half) || ((!n) && (!e) && mode32 && half) || (!c && !l)) continue;
 
             if (e && half)
                 endBeat -= 16;

@@ -40,6 +40,7 @@ MIDITimer::MIDITimer(Callback<void()> timeoutCallback) : USBMIDI(get_usb_phy(), 
 
     _midiUART.set_format(8, BufferedSerial::None, 1);
     _midiUART.set_flow_control(BufferedSerial::Disabled);
+    _midiUART.set_blocking(false);
 }
 
 void MIDITimer::initUSB() {
@@ -176,7 +177,9 @@ void MIDITimer::checkUSB() {
 void MIDITimer::checkMIDI() {
     char byte;
     if (clockSource) {
-        while (_midiUART.read(&byte, 1)) {
+        while (_midiUART.readable()) {
+            ssize_t n = _midiUART.read(&byte, 1);
+            if (n <= 0) break;
             if ((byte & 0xF0) == 0xF0) {  // System
                 switch (byte) {
                     case 0xF0:  // Start of SysEx

@@ -118,6 +118,7 @@ int16_t tempo[2] = {0, 120};  // 0 = Int, 1 = Ext, in Ext, 0 = Half, 2 = Dbl
 uint8_t hold = 0;             // 0 = No Hold, 1 = Waiting 1st, 2 = Waiting 2nd
 bool usbMode = false;         // false = MIDI, true = MSD
 bool clockSource = false;     // false = USB, true = UART
+bool usbData = true;
 
 // Memory Variables
 
@@ -246,7 +247,7 @@ void selectFunc() {
 void function1() {
     switch (mainState) {
         case MAIN:
-            if (shift) {  // If USBMIDI mode is disabled, enable it
+            if (shift && usbData) {  // If USBMIDI mode is disabled, enable it
                 if (!timer.getUSB()) {
                     midiFiles.deinitUSB();
                     timer.initUSB();
@@ -315,7 +316,7 @@ void function1() {
 void function2() {
     switch (mainState) {
         case MAIN:
-            if (shift) {  // If USBMSD disabled, enable it
+            if (shift && usbData) {  // If USBMSD disabled, enable it
                 if (!midiFiles.getUSB()) {
                     timer.deinitUSB();
                     midiFiles.initUSB();
@@ -416,7 +417,7 @@ void function2() {
 void function3() {
     switch (mainState) {
         case MAIN:
-            if (shift) {
+            if (shift && usbData) {
                 if (!usbMode) clockSource = false;
                 shift = false;
             } else
@@ -500,7 +501,7 @@ void function3() {
 void function4() {
     switch (mainState) {
         case MAIN:
-            if (shift) {
+            if (shift && usbData) {
                 clockSource = true;
                 shift = false;
             } else
@@ -737,7 +738,10 @@ int main() {
     midiFiles.init();
     timerThread.start(pollTimer);
     ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0]));  // Update LED strip
-    if (!timer.getUSB()) clockSource = true;
+    if (!timer.getUSB()) {
+        clockSource = true;
+        usbData = false;
+    }
     screen.updateScreen();
 
 #if TESTING_MODES
