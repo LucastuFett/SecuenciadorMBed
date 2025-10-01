@@ -119,11 +119,8 @@ void MIDITimer::poll() {
     tempoMutex.unlock();
     if (!_playing) return;  // If not playing, exit
     tempoMutex.lock();
-    if (!tempo[0] && now >= _interval) {
-        _timeoutCallback();  // Call the timeout callback
-        _timer.reset();
-    } else if (!tempo[0]) {
-        if (_nextOff != 0 && now >= (_interval - static_cast<us_timestamp_t>(_nextOff * 1000))) {
+    if (!tempo[0]) {
+        if (_nextOff != 0 && now >= (_interval - static_cast<us_timestamp_t>(_nextOff * 1200))) {
             _nextOff = 0;
             for (int i = 0; i < 10; i++) {
                 beatMutex.lock();
@@ -145,8 +142,11 @@ void MIDITimer::poll() {
                     _midiUART.write(offMessages[index], 3);
                 }
             }
+        } else if (now >= _interval) {
+            _timeoutCallback();  // Call the timeout callback
+            _timer.reset();
         }
-    } else if (tempo[0]) {
+    } else {
         clockMutex.lock();
         uint8_t expectedPulses = 24 >> tempo[1];
         if (_clockPulses >= expectedPulses) {
@@ -279,6 +279,16 @@ void MIDITimer::beatPlay() {
     controlMutex.unlock();
     for (int i = 0; i < 10; i++) {
         index = i * 32 + beat;
+        if (!tempo[0]) {
+            uint8_t offBeat = beat + 1;
+            if (mode32 & (offBeat == 32))
+                offBeat = 0;
+            else if (!mode32 & (offBeat == 16))
+                offBeat = 0;
+            if (offMessages[i * 32 + offBeat][0] != 0) {
+                _nextOff++;
+            }
+        }
         if (offMessages[index][0] != 0) {
             channelEnabledMutex.lock();
             if (channelEnabled[offMessages[index][0] & 0xF] == false) {
@@ -288,17 +298,6 @@ void MIDITimer::beatPlay() {
             channelEnabledMutex.unlock();
             if (_usb) write(MIDIMessage::NoteOn(offMessages[index][1], offMessages[index][2], offMessages[index][0] & 0xF));
             if (tempo[0]) _midiUART.write(offMessages[index], 3);
-        }
-        if (!tempo[0]) {
-            uint8_t offBeat = beat + 1;
-            if (mode32 & (offBeat == 32))
-                offBeat = 0;
-            else if (!mode32 & (offBeat == 16))
-                offBeat = 0;
-            index = i * 32 + offBeat;
-            if (offMessages[index][0] != 0) {
-                _nextOff++;
-            }
         }
     }
     for (int i = 0; i < 10; i++) {

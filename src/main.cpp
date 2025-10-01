@@ -779,7 +779,7 @@ int main() {
                         uint8_t num = (i - 1) * 4 + j;
                         buttons.press(num);
                         if (!channelEnabled[num]) timer.allNotesOff(num);
-                        screen.updateScreen();
+                        if (mainState != CHANNEL && mainState != PLAY) screen.updateScreen();
                     } else if (!keys[i][j] && lastKeys[i][j] && mainState == LAUNCH) {  // Key released
                         uint8_t num = (i - 1) * 4 + j;
                         buttons.release(num);
