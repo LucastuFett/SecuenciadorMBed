@@ -177,9 +177,23 @@ void selectFunc() {
             break;
         case SAVELOAD:
             messagesMutex.lock();
+            holdedMutex.lock();
             filename = screen.getFilename();
-            midiFiles.readFromFile(midiMessages, offMessages, tempo, filename, bank, mode, tone);
-            buttons.updateStructures();
+            if (filename != "") {
+                midiFiles.readFromFile(midiMessages, offMessages, tempo, filename, bank, mode, tone);
+                buttons.updateStructures();
+            } else {
+                filename = "Song";
+                for (uint16_t i = 0; i < 320; i++)
+                    for (uint8_t j = 0; j < 3; j++) midiMessages[i][j] = 0;
+                for (uint16_t i = 0; i < 320; i++)
+                    for (uint8_t j = 0; j < 3; j++) offMessages[i][j] = 0;
+                for (uint16_t i = 0; i < 1536; i++) beatsPerTone[i] = 0;
+                for (uint8_t i = 0; i < 16; i++) channels[i] = 0;
+                control = 0;
+                holded.clear();
+            }
+            holdedMutex.unlock();
             messagesMutex.unlock();
             mainState = PROG;
             break;
@@ -196,6 +210,7 @@ void selectFunc() {
                 if (filename != "") {
                     midiFiles.readFromFile(midiMessages, offMessages, tempo, filename, bank, mode, tone);
                     buttons.updateStructures();
+                    nextFilename = "";
                 }
                 messagesMutex.unlock();
             }
@@ -245,9 +260,23 @@ void function1() {
             break;
         case SAVELOAD:  // Load selected song
             messagesMutex.lock();
+            holdedMutex.lock();
             filename = screen.getFilename();
-            midiFiles.readFromFile(midiMessages, offMessages, tempo, filename, bank, mode, tone);
-            buttons.updateStructures();
+            if (filename != "") {
+                midiFiles.readFromFile(midiMessages, offMessages, tempo, filename, bank, mode, tone);
+                buttons.updateStructures();
+            } else {
+                filename = "Song";
+                for (uint16_t i = 0; i < 320; i++)
+                    for (uint8_t j = 0; j < 3; j++) midiMessages[i][j] = 0;
+                for (uint16_t i = 0; i < 320; i++)
+                    for (uint8_t j = 0; j < 3; j++) offMessages[i][j] = 0;
+                for (uint16_t i = 0; i < 1536; i++) beatsPerTone[i] = 0;
+                for (uint8_t i = 0; i < 16; i++) channels[i] = 0;
+                control = 0;
+                holded.clear();
+            }
+            holdedMutex.unlock();
             messagesMutex.unlock();
             mainState = PROG;
             break;
@@ -699,7 +728,6 @@ int main() {
     ThisThread::sleep_for(100ms);
 
     // Initialize components
-    screen.init();
     midiFiles.init();
     timerThread.start(pollTimer);
     ledStrip.WS2812_Transfer((uint32_t)&ledData, sizeof(ledData) / sizeof(ledData[0]));  // Update LED strip
@@ -708,14 +736,31 @@ int main() {
         clockSource = true;
         usbData = false;
     }
+    screen.init();
     screen.updateScreen();
 
     while (true) {
         readKeys();
-        if (memcmp(keys, lastKeys, sizeof(keys)) != 0) {
-            if (switches[1]) {
+        if (memcmp(switches, lastSwitches, sizeof(switches)) != 0) {
+            if (switches[0] && !lastSwitches[0]) selectFunc();
+            if (switches[1] && !lastSwitches[1]) {  // Reset shift timer
+                shiftTimer.reset();
+                shiftTimer.start();
                 shift = true;
             }
+            if (!switches[1] && lastSwitches[1]) {  // If exit released
+                // If time pressed is less than a second, count as exit
+                if (shiftTimer.elapsed_time() < std::chrono::microseconds(1000000) && shift == true) {
+                    exitFunc();
+                    shift = false;
+                } else  // If not, quit shifting
+                    shift = false;
+                shiftTimer.stop();
+            }
+            memcpy(lastSwitches, switches, sizeof(switches));
+        }
+
+        if (memcmp(keys, lastKeys, sizeof(keys)) != 0) {
             if (keys[0][0] && !lastKeys[0][0]) {  // Function 3
                 function3();
             }
@@ -742,25 +787,6 @@ int main() {
                 }
             }
             memcpy(lastKeys, keys, sizeof(keys));  // Update lastKeys
-        }
-
-        if (memcmp(switches, lastSwitches, sizeof(switches)) != 0) {
-            if (switches[0] && !lastSwitches[0]) selectFunc();
-            if (switches[1] && !lastSwitches[1]) {  // Reset shift timer
-                shiftTimer.reset();
-                shiftTimer.start();
-                shift = true;
-            }
-            if (!switches[1] && lastSwitches[1]) {  // If exit released
-                // If time pressed is less than a second, count as exit
-                if (shiftTimer.elapsed_time() < std::chrono::microseconds(1000000) && shift == true) {
-                    exitFunc();
-                    shift = false;
-                } else  // If not, quit shifting
-                    shift = false;
-                shiftTimer.stop();
-            }
-            memcpy(lastSwitches, switches, sizeof(switches));
         }
 
         if (encoder.getRotaryEncoder()) {

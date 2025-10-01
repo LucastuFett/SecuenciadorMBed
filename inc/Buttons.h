@@ -3,56 +3,32 @@
 
 #define RGBBTN 1
 #if RGBBTN
-// RGB Button Colors
-#define BlueBtn 0x092D3900
-#define PurpleBtn 0x26153C00
-#define RedBtn 0x30000000
-#define OrangeBtn 0x3F200700
+// RGB Button Colors — scaled to 25%
+#define BlueBtn 0x020B0E00
+#define PurpleBtn 0x0A050F00
+#define RedBtn 0x0C000000
+#define OrangeBtn 0x10080200
 
 // RGB colors (uint32_t)
 const uint32_t launchColors[] = {
-    0x7F191200,
-    0x00430600,
-    0x1F3B7F00,
-    0x66420E00,
-    0x782A5700,
-    0x05556400,
-    0x7A2F2600,
-    0x00677D00,
-    0x00677D00,
-    0x7A2F2600,
-    0x05556400,
-    0x782A5700,
-    0x66420E00,
-    0x1F3B7F00,
-    0x00430600,
-    0x7F191200};
+    0x20060400, 0x00110200, 0x080F2000, 0x1A100400,
+    0x1E0A1600, 0x01151900, 0x1E0C0A00, 0x001A1F00,
+    0x001A1F00, 0x1E0C0A00, 0x01151900, 0x1E0A1600,
+    0x1A100400, 0x080F2000, 0x00110200, 0x20060400};
 
 #else
-// GRB Button Colors
-#define BlueBtn 0x2D093900
-#define PurpleBtn 0x15263C00
-#define RedBtn 0x00300000
-#define OrangeBtn 0x203F0700
+// GRB Button Colors — scaled to 25%
+#define BlueBtn 0x0B020E00
+#define PurpleBtn 0x050A0F00
+#define RedBtn 0x000C0000
+#define OrangeBtn 0x08100200
 
-// GRB colors (uint32_t) at 50% brightness
+// GRB colors (uint32_t)
 const uint32_t launchColors[] = {
-    0x197F1200,
-    0x43000600,
-    0x3B1F7F00,
-    0x42660E00,
-    0x2A785700,
-    0x55056400,
-    0x2F7A2600,
-    0x00677D00,
-    0x00677D00,
-    0x2F7A2600,
-    0x55056400,
-    0x2A785700,
-    0x42660E00,
-    0x3B1F7F00,
-    0x43000600,
-    0x197F1200};
+    0x06200400, 0x11000200, 0x0F082000, 0x101A0400,
+    0x0A1E1600, 0x15011900, 0x0C1E0A00, 0x001A1F00,
+    0x001A1F00, 0x0C1E0A00, 0x15011900, 0x0A1E1600,
+    0x101A0400, 0x0F082000, 0x11000200, 0x06200400};
 #endif
 
 class Buttons {

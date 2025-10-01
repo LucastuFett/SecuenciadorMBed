@@ -22,6 +22,7 @@ extern bool usbMode;
 extern bool clockSource;
 extern bool usbData;
 extern string filename;
+extern string nextFilename;
 extern string renameFilename;
 extern uint8_t bank;
 extern bool launchType;
@@ -944,6 +945,7 @@ void Screen::updateMemoryText() {
     else if (mainState == RENAME)
         name = renameFilename;
     if (name != "" && _edit == 0) {
+        for (uint8_t i = 0; i < 18; i++) _typing[i] = ' ';
         for (uint8_t i = 0; i < name.length(); i++) _typing[i] = name[i];
         // Draw first letter as selected (grey background, white foreground)
         background(DarkGrey);
@@ -1030,16 +1032,26 @@ void Screen::updateBanks() {
     }
 
     int8_t newCurrent = -1;
-    for (uint8_t i = 0; i < 12; ++i) {
-        if (_files[i] == filename) {
-            newCurrent = i;
-            break;
+    if (nextFilename != "") {
+        for (uint8_t i = 0; i < 12; ++i) {
+            if (_files[i] == nextFilename) {
+                newCurrent = i;
+                break;
+            }
+        }
+    }
+
+    if (newCurrent == -1) {
+        for (uint8_t i = 0; i < 12; ++i) {
+            if (_files[i] == filename) {
+                newCurrent = i;
+                break;
+            }
         }
     }
     _currentFile = newCurrent;  // -1 means “no current file in this bank”
 
-    if (_selectedFile < 0) _selectedFile = 0;
-    if (_selectedFile > 11) _selectedFile = 11;
+    /*
     if (_files[_selectedFile].empty()) {
         // Prefer the current (purple) if valid, else the first non-empty slot
         if (_currentFile >= 0) {
@@ -1052,7 +1064,7 @@ void Screen::updateBanks() {
                 }
             }
         }
-    }
+    }*/
 
     for (uint8_t i = 0; i < 12; ++i) {
         if (i == _currentFile)
@@ -1147,6 +1159,9 @@ void Screen::showLaunchpad(bool show) {
                 fillrect(6 + j * 39, 97 + i * 54, 41 + j * 39, 147 + i * 54, launchColorsScr[i * 8 + j]);
             }
         }
+        _lastLaunchChn = launchChn + 1;
+        _lastLaunchType = !launchType;
+        // Fix for next show
     } else if (!show && _launchpad) {
         fillrect(5, 40, 320, 205, Black);  // Hide Launchpad Box
     }
@@ -1160,7 +1175,6 @@ void Screen::updateLaunch() {
             set_font((unsigned char*)Arial16x16);
             puts(("Channel " + to_string(launchChn + 1)).c_str());
             set_font((unsigned char*)Arial12x12);
-            _lastLaunchChn = launchChn;
         }
         if (!launchType) {  // Launchpad
             getPossible(launchPossible, launchTone, launchMode);
@@ -1178,51 +1192,53 @@ void Screen::updateLaunch() {
                 puts((tones[launchTone] + " " + scales[launchMode].name).c_str());
                 set_font((unsigned char*)Arial12x12);
             }
-            if (_lastLaunchTone != launchTone || _lastLaunchMode != launchMode || _lastLaunchOctave != launchOctave || _lastLaunchType != launchType) {
-                for (uint8_t i = 0; i < 2; i++) {
-                    for (uint8_t j = 0; j < 8; j++) {
-                        fillrect(6 + j * 39, 97 + i * 54, 41 + j * 39, 147 + i * 54, launchColorsScr[i * 8 + j]);
+            if (_lastLaunchTone != launchTone || _lastLaunchMode != launchMode || _lastLaunchOctave != launchOctave || _lastLaunchType != launchType || _lastLaunchChn != launchChn) {
+                if (_lastLaunchTone != launchTone || _lastLaunchMode != launchMode || _lastLaunchOctave != launchOctave || _lastLaunchType != launchType) {
+                    for (uint8_t i = 0; i < 2; i++) {
+                        for (uint8_t j = 0; j < 8; j++) {
+                            fillrect(6 + j * 39, 97 + i * 54, 41 + j * 39, 147 + i * 54, launchColorsScr[i * 8 + j]);
+                        }
                     }
                 }
-                for (uint8_t i = 0; i < 8; i++) {
-                    uint8_t noteIndexLow;
-                    uint8_t noteIndexHigh;
-                    if (i == 7) {
-                        noteIndexLow = launchPossible[0][0] + ((launchOctave + 1) * 12) + 24;
-                        noteIndexHigh = launchPossible[0][0] + ((launchOctave + 2) * 12) + 24;
 
-                        background(launchColorsScr[i]);
-                        locate(8 + i * 39, 117);
-                        puts((tones[launchPossible[0][0]] + to_string(launchOctave + 1)).c_str());
+                uint8_t prev = launchPossible[0][0];
+                int8_t octL = 0;
+                int8_t octH = 1;
 
-                        background(launchColorsScr[i + 8]);
-                        locate(8 + i * 39, 171);
-                        puts((tones[launchPossible[0][0]] + to_string(launchOctave + 2)).c_str());
-                        background(Black);
-                    } else {
-                        noteIndexLow = launchPossible[0][i] + ((launchOctave) * 12) + 24;
-                        noteIndexHigh = launchPossible[0][i] + ((launchOctave + 1) * 12) + 24;
+                for (uint8_t i = 0; i < 8; ++i) {
+                    const uint8_t deg = (i == 7)
+                                            ? launchPossible[0][0]
+                                            : launchPossible[0][i];
 
-                        background(launchColorsScr[i]);
-                        locate(8 + i * 39, 117);
-                        puts((tones[launchPossible[0][i]] + to_string(launchOctave)).c_str());
-
-                        background(launchColorsScr[i + 8]);
-                        locate(8 + i * 39, 171);
-                        puts((tones[launchPossible[0][i]] + to_string(launchOctave + 1)).c_str());
-                        background(Black);
+                    if (i > 0 && deg < prev) {
+                        octL++;
+                        octH++;
                     }
+
+                    background(launchColorsScr[i]);
+                    locate(8 + i * 39, 117);
+                    puts((tones[deg] + to_string(launchOctave + octL)).c_str());
+
+                    background(launchColorsScr[i + 8]);
+                    locate(8 + i * 39, 171);
+                    puts((tones[deg] + to_string(launchOctave + octH)).c_str());
+                    background(Black);
+
                     launchMessages[i][0] = 0x90 | launchChn;
-                    launchMessages[i][1] = noteIndexLow;
+                    launchMessages[i][1] = deg + ((launchOctave + octL) * 12) + 24;
                     launchMessages[i][2] = 127;
+
                     launchMessages[i + 8][0] = 0x90 | launchChn;
-                    launchMessages[i + 8][1] = noteIndexHigh;
+                    launchMessages[i + 8][1] = deg + ((launchOctave + octH) * 12) + 24;
                     launchMessages[i + 8][2] = 127;
+
+                    prev = deg;
                 }
                 _lastLaunchTone = launchTone;
                 _lastLaunchMode = launchMode;
                 _lastLaunchOctave = launchOctave;
                 _lastLaunchType = launchType;
+                _lastLaunchChn = launchChn;
             }
 
         } else {  // Keyboard
@@ -1338,6 +1354,5 @@ void Screen::updateLaunch() {
             launchMessages[i + 8][1] = 102 + i + 8;
             launchMessages[i + 8][2] = 127;
         }
-        _lastLaunchType = !launchType;  // Fix for next time
     }
 }
